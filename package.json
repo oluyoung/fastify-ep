@@ -16,6 +16,7 @@
     "build": "tsc",
     "postbuild": "chmod +x dist/cli.js",
     "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run"
