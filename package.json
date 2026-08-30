@@ -1,0 +1,37 @@
+{
+  "name": "fastify-ep",
+  "version": "0.1.0",
+  "description": "Scaffolds and keeps scaffolding a domain-driven module structure on native Fastify, without a DI runtime.",
+  "type": "module",
+  "bin": {
+    "fastify-ep": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "postbuild": "chmod +x dist/cli.js",
+    "dev": "tsx src/cli.ts",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "@types/node": "^22.5.0",
+    "eslint": "^9.9.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.3.0",
+    "vitest": "^2.0.5"
+  }
+}
