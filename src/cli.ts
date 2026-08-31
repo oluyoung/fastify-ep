@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { createRequire } from 'node:module';
 import { Command } from 'commander';
-import { PACKAGE_MANAGERS, runInit } from './commands/init.js';
+import { runGenerateModule } from './commands/generate.js';
+import { runInit } from './commands/init.js';
+import { PACKAGE_MANAGERS } from './package-manager.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string };
@@ -30,7 +32,17 @@ program
       name,
       { pm: options.pm as (typeof PACKAGE_MANAGERS)[number] | undefined },
       process.cwd(),
+      pkg.version,
     );
+  });
+
+const generate = program.command('generate').description('generate code in a scaffolded project');
+
+generate
+  .command('module <name>')
+  .description('add a new domain module')
+  .action(async (name: string) => {
+    await runGenerateModule(name, process.cwd());
   });
 
 program.parse();

@@ -10,6 +10,8 @@ export default tseslint.config(
     files: ['src/**/*.ts'],
   },
   {
-    ignores: ['dist/**'],
+    // Not real TS: `{{moduleName}}`/`{{ModuleName}}` placeholders are rendered into
+    // identifiers before these files exist as valid TypeScript.
+    ignores: ['dist/**', 'module-template/**'],
   },
 );
