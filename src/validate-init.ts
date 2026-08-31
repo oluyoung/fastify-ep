@@ -17,7 +17,7 @@ export function validateInit(name: string, cwd: string): ValidateInitResult {
     return { valid: false, reason };
   }
 
-  // Only unscoped names create a directory (design doc: target-directory-safety).
+  // Only unscoped names create a directory
   if (name.startsWith('@')) {
     return {
       valid: false,

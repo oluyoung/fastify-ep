@@ -13,13 +13,6 @@ export class MarkerNotFoundError extends Error {
   }
 }
 
-/**
- * Inserts a module's registration call directly above the `// fastify-ep:register`
- * marker in `appTsPath`, per SEAM-DESIGN.md's marker convention. The register call
- * uses a dynamic import so this stays a single-line insertion with nothing else in
- * app.ts to touch — no import-block editing, no AST parser, same reasoning
- * SEAM-DESIGN.md gives for string-based marker insertion over `ts-morph`.
- */
 export function insertModuleRegistration(appTsPath: string, moduleName: string): void {
   const content = readFileSync(appTsPath, 'utf8');
   const lines = content.split('\n');

@@ -28,14 +28,6 @@ function copyTemplateDir(srcDir: string, destDir: string, projectName: string): 
   }
 }
 
-/**
- * Copies the template tree into `targetDir` (rendering `{{projectName}}`), then
- * writes `.fastify-ep.json` last — the commit point (SEAM-DESIGN.md write-ordering).
- * On any failure, everything this call wrote is rolled back: the whole directory if
- * it created `targetDir`, or just the template-derived entries inside it if the user
- * pointed `init` at a pre-existing (empty) directory — that directory itself is left
- * alone either way.
- */
 export function scaffoldProject({
   targetDir,
   projectName,

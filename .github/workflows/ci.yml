@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+    tags: ['v*']
 
 jobs:
   lint-and-build:
@@ -21,3 +22,71 @@ jobs:
       - run: npm run lint
 
       - run: npm run typecheck
+
+      - run: npm test
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Pack tarball
+        run: npm pack --pack-destination "$RUNNER_TEMP"
+
+      - name: Install CLI from tarball (not the working tree)
+        run: npm install -g "$RUNNER_TEMP"/fastify-ep-*.tgz
+
+      - name: fastify-ep init
+        run: |
+          mkdir -p "$RUNNER_TEMP/harness"
+          cd "$RUNNER_TEMP/harness"
+          fastify-ep init demo-app --pm npm
+
+      - name: fastify-ep generate module
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: fastify-ep generate module orders
+
+      - name: Install generated project's dependencies
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: npm install
+
+      - name: Typecheck generated project
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: npm run typecheck
+
+      - name: Test generated project
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: npm test
+
+  publish:
+    needs: [lint-and-build, integration]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - run: npm test
+
+      - run: npm publish --provenance

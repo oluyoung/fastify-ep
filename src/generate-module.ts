@@ -41,17 +41,6 @@ function readManifest(manifestPath: string): Manifest {
   return JSON.parse(readFileSync(manifestPath, 'utf8')) as Manifest;
 }
 
-/**
- * Generates a new domain module inside an already-scaffolded project, reusing
- * `init`'s template-render mechanism and marker/manifest write-ordering
- * (SEAM-DESIGN.md): module files -> marker insertion -> manifest write last.
- *
- * Guardrails (Phase 5.2, per SEAM-DESIGN.md): refuses if `.fastify-ep.json` is
- * missing (not a scaffolded project), refuses on module-name collision (existing
- * directory or manifest entry), and rolls back the orphaned module directory if
- * the `// fastify-ep:register` marker is missing from `app.ts` — `app.ts` and the
- * manifest are left untouched in that case.
- */
 export function generateModule({
   targetDir,
   moduleName,
