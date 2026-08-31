@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "Scaffolds and keeps scaffolding a domain-driven module structure on native Fastify, without a DI runtime.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oluyoung/fastify-ep.git"
+  },
+  "homepage": "https://github.com/oluyoung/fastify-ep#readme",
+  "bugs": {
+    "url": "https://github.com/oluyoung/fastify-ep/issues"
+  },
   "bin": {
     "fastify-ep": "dist/cli.js"
   },
