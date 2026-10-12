@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createRequire } from 'node:module';
 import { Command } from 'commander';
+import { runDoctor } from './commands/doctor.js';
 import { runGenerateModule } from './commands/generate.js';
 import { runInit } from './commands/init.js';
 import { PACKAGE_MANAGERS } from './package-manager.js';
@@ -43,6 +44,13 @@ generate
   .description('add a new domain module')
   .action(async (name: string) => {
     await runGenerateModule(name, process.cwd());
+  });
+
+program
+  .command('doctor')
+  .description('validate project integrity')
+  .action(async () => {
+    await runDoctor(process.cwd());
   });
 
 program.parse();

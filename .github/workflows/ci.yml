@@ -27,6 +27,9 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        pm: [npm, pnpm, yarn]
     steps:
       - uses: actions/checkout@v4
 
@@ -34,6 +37,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
+
+      - name: Enable corepack
+        run: corepack enable
 
       - run: npm ci
 
@@ -49,7 +55,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/harness"
           cd "$RUNNER_TEMP/harness"
-          fastify-ep init demo-app --pm npm
+          fastify-ep init demo-app --pm ${{ matrix.pm }}
 
       - name: fastify-ep generate module
         working-directory: ${{ runner.temp }}/harness/demo-app
@@ -57,15 +63,15 @@ jobs:
 
       - name: Install generated project's dependencies
         working-directory: ${{ runner.temp }}/harness/demo-app
-        run: npm install
+        run: ${{ matrix.pm }} install
 
       - name: Typecheck generated project
         working-directory: ${{ runner.temp }}/harness/demo-app
-        run: npm run typecheck
+        run: ${{ matrix.pm == 'npm' && 'npm run typecheck' || format('{0} typecheck', matrix.pm) }}
 
       - name: Test generated project
         working-directory: ${{ runner.temp }}/harness/demo-app
-        run: npm test
+        run: ${{ matrix.pm == 'npm' && 'npm test' || format('{0} test', matrix.pm) }}
 
   publish:
     needs: [lint-and-build, integration]

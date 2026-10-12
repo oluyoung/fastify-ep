@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Manifest, MANIFEST_SCHEMA_VERSION } from './manifest.js';
 import { insertModuleRegistration } from './register-module.js';
 import { renderTemplate } from './template-engine.js';
 
@@ -39,10 +40,11 @@ export function scaffoldProject({
     copyTemplateDir(templatesDir, targetDir, projectName);
     insertModuleRegistration(join(targetDir, 'src', 'app.ts'), 'health');
 
-    const manifest = {
-      version: cliVersion,
-      diStrategy: 'native',
-      modules: ['health'] as string[],
+    const manifest: Manifest = {
+      schemaVersion: MANIFEST_SCHEMA_VERSION,
+      fastifyEpVersion: cliVersion,
+      architecture: { schema: 'typebox', di: 'native', database: 'none' },
+      modules: ['health'],
     };
     writeFileSync(join(targetDir, '.fastify-ep.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   } catch (err) {

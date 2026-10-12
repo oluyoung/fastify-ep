@@ -40,7 +40,12 @@ describe('scaffoldProject', () => {
     expect(pkg.name).toBe('my-app');
 
     const manifest = JSON.parse(readFileSync(join(targetDir, '.fastify-ep.json'), 'utf8'));
-    expect(manifest).toEqual({ version: '0.1.0', diStrategy: 'native', modules: ['health'] });
+    expect(manifest).toEqual({
+      schemaVersion: 2,
+      fastifyEpVersion: '0.1.0',
+      architecture: { schema: 'typebox', di: 'native', database: 'none' },
+      modules: ['health'],
+    });
   });
 
   it('rolls back the directory it created when the marker is missing', () => {

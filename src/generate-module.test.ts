@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ModuleCollisionError, NotScaffoldedError, generateModule } from './generate-module.js';
+import { LegacyManifestError } from './manifest.js';
 import { MarkerNotFoundError } from './register-module.js';
 
 let workDir: string;
@@ -13,6 +14,36 @@ afterEach(() => {
 
 /** A minimal fake scaffolded project: an app.ts with the marker + a manifest. */
 function makeScaffoldedProject(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'fastify-ep-project-'));
+  mkdirSync(join(dir, 'src'), { recursive: true });
+  writeFileSync(
+    join(dir, 'src/app.ts'),
+    [
+      'export async function buildApp() {',
+      '  // fastify-ep:register',
+      '  return app;',
+      '}',
+      '',
+    ].join('\n'),
+  );
+  writeFileSync(
+    join(dir, '.fastify-ep.json'),
+    `${JSON.stringify(
+      {
+        schemaVersion: 2,
+        fastifyEpVersion: '0.1.0',
+        architecture: { schema: 'typebox', di: 'native', database: 'none' },
+        modules: ['health'],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  return dir;
+}
+
+/** A minimal fake scaffolded project with a v1 (legacy) manifest. */
+function makeLegacyScaffoldedProject(): string {
   const dir = mkdtempSync(join(tmpdir(), 'fastify-ep-project-'));
   mkdirSync(join(dir, 'src'), { recursive: true });
   writeFileSync(
@@ -110,5 +141,14 @@ describe('generateModule', () => {
 
     const manifest = JSON.parse(readFileSync(join(workDir, '.fastify-ep.json'), 'utf8'));
     expect(manifest.modules).toEqual(['health']);
+  });
+
+  it('refuses to operate on a legacy (v1) manifest with an explanatory error', () => {
+    workDir = makeLegacyScaffoldedProject();
+
+    expect(() => generateModule({ targetDir: workDir, moduleName: 'orders' })).toThrow(
+      LegacyManifestError,
+    );
+    expect(existsSync(join(workDir, 'src/modules/orders'))).toBe(false);
   });
 });

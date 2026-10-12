@@ -13,6 +13,15 @@ export class MarkerNotFoundError extends Error {
   }
 }
 
+function registrationLine(moduleName: string): string {
+  return `await fastify.register((await import('./modules/${moduleName}/${moduleName}.module.js')).default);`;
+}
+
+export function isModuleRegistered(appTsContent: string, moduleName: string): boolean {
+  const line = registrationLine(moduleName);
+  return appTsContent.split('\n').some((l) => l.trim() === line);
+}
+
 export function insertModuleRegistration(appTsPath: string, moduleName: string): void {
   const content = readFileSync(appTsPath, 'utf8');
   const lines = content.split('\n');
@@ -22,7 +31,6 @@ export function insertModuleRegistration(appTsPath: string, moduleName: string):
   }
 
   const indent = /^\s*/.exec(lines[markerIndex])?.[0] ?? '';
-  const registerLine = `${indent}await fastify.register((await import('./modules/${moduleName}/${moduleName}.module.js')).default);`;
-  lines.splice(markerIndex, 0, registerLine);
+  lines.splice(markerIndex, 0, `${indent}${registrationLine(moduleName)}`);
   writeFileSync(appTsPath, lines.join('\n'));
 }

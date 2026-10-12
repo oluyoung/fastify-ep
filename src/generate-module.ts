@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { toCamelCase, toPascalCase } from './case.js';
+import { readManifest } from './manifest.js';
 import { insertModuleRegistration } from './register-module.js';
 import { renderTemplate } from './template-engine.js';
 
@@ -12,12 +13,6 @@ export interface GenerateModuleOptions {
   moduleName: string;
   /** Override for tests; defaults to this package's real `module-template/` dir. */
   moduleTemplateDir?: string;
-}
-
-interface Manifest {
-  version: string;
-  diStrategy: string;
-  modules: string[];
 }
 
 export class NotScaffoldedError extends Error {
@@ -35,10 +30,6 @@ export class ModuleCollisionError extends Error {
     super(`a module named "${moduleName}" already exists.`);
     this.name = 'ModuleCollisionError';
   }
-}
-
-function readManifest(manifestPath: string): Manifest {
-  return JSON.parse(readFileSync(manifestPath, 'utf8')) as Manifest;
 }
 
 export function generateModule({

@@ -2,6 +2,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import Fastify from 'fastify';
 import envPlugin from './config/env.js';
+import { registerErrorHandler } from './errors/error-handler.js';
 
 export async function buildApp() {
   const fastify = Fastify({ logger: true });
@@ -18,6 +19,8 @@ export async function buildApp() {
   await fastify.register(swaggerUi, {
     routePrefix: '/documentation',
   });
+
+  registerErrorHandler(fastify);
 
   // fastify-ep:register
 
