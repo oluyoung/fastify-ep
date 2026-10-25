@@ -36,6 +36,32 @@ describe('readManifest', () => {
     });
   });
 
+  it.each(['drizzle', 'prisma'] as const)('accepts database "%s"', (database) => {
+    const manifestPath = writeManifest(
+      JSON.stringify({
+        schemaVersion: 2,
+        fastifyEpVersion: '0.3.0',
+        architecture: { schema: 'typebox', di: 'native', database },
+        modules: ['health'],
+      }),
+    );
+
+    expect(readManifest(manifestPath).architecture.database).toBe(database);
+  });
+
+  it('throws InvalidManifestError for an unsupported database strategy', () => {
+    const manifestPath = writeManifest(
+      JSON.stringify({
+        schemaVersion: 2,
+        fastifyEpVersion: '0.3.0',
+        architecture: { schema: 'typebox', di: 'native', database: 'mongo' },
+        modules: ['health'],
+      }),
+    );
+
+    expect(() => readManifest(manifestPath)).toThrow(InvalidManifestError);
+  });
+
   it('throws LegacyManifestError for a v1 manifest', () => {
     const manifestPath = writeManifest(
       JSON.stringify({ version: '0.1.0', diStrategy: 'native', modules: ['health'] }),

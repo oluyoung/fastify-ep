@@ -11,7 +11,7 @@ const MODULE_TEMPLATE_DIR = fileURLToPath(new URL('../module-template', import.m
 export interface GenerateModuleOptions {
   targetDir: string;
   moduleName: string;
-  /** Override for tests; defaults to this package's real `module-template/` dir. */
+  withTests?: boolean;
   moduleTemplateDir?: string;
 }
 
@@ -35,6 +35,7 @@ export class ModuleCollisionError extends Error {
 export function generateModule({
   targetDir,
   moduleName,
+  withTests = true,
   moduleTemplateDir = MODULE_TEMPLATE_DIR,
 }: GenerateModuleOptions): void {
   const manifestPath = join(targetDir, '.fastify-ep.json');
@@ -52,11 +53,14 @@ export function generateModule({
     moduleName,
     camelModuleName: toCamelCase(moduleName),
     ModuleName: toPascalCase(moduleName),
+    // Not used by the built-in module template yet; available to database-aware templates.
+    database: manifest.architecture.database,
   };
 
   mkdirSync(moduleDir, { recursive: true });
   for (const entry of readdirSync(moduleTemplateDir)) {
     const suffix = entry.replace(/^module\./, '');
+    if (!withTests && suffix === 'test.ts') continue;
     const content = readFileSync(join(moduleTemplateDir, entry), 'utf8');
     writeFileSync(join(moduleDir, `${moduleName}.${suffix}`), renderTemplate(content, vars));
   }

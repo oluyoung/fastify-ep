@@ -8,6 +8,7 @@ export async function buildApp() {
   const fastify = Fastify({ logger: true });
 
   await fastify.register(envPlugin);
+  // fastify-ep:infrastructure
   await fastify.register(swagger, {
     openapi: {
       info: {

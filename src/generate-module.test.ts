@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 /** A minimal fake scaffolded project: an app.ts with the marker + a manifest. */
-function makeScaffoldedProject(): string {
+function makeScaffoldedProject(database: 'none' | 'drizzle' | 'prisma' = 'none'): string {
   const dir = mkdtempSync(join(tmpdir(), 'fastify-ep-project-'));
   mkdirSync(join(dir, 'src'), { recursive: true });
   writeFileSync(
@@ -32,7 +32,7 @@ function makeScaffoldedProject(): string {
       {
         schemaVersion: 2,
         fastifyEpVersion: '0.1.0',
-        architecture: { schema: 'typebox', di: 'native', database: 'none' },
+        architecture: { schema: 'typebox', di: 'native', database },
         modules: ['health'],
       },
       null,
@@ -64,12 +64,12 @@ function makeLegacyScaffoldedProject(): string {
 }
 
 describe('generateModule', () => {
-  it('writes the 4 module files, inserts the register call, and appends to the manifest', () => {
+  it('writes the 5 module files (including the test), inserts the register call, and appends to the manifest', () => {
     workDir = makeScaffoldedProject();
 
     generateModule({ targetDir: workDir, moduleName: 'orders' });
 
-    for (const suffix of ['schema', 'service', 'controller', 'module']) {
+    for (const suffix of ['schema', 'service', 'controller', 'module', 'test']) {
       expect(existsSync(join(workDir, `src/modules/orders/orders.${suffix}.ts`))).toBe(true);
     }
 
@@ -80,6 +80,15 @@ describe('generateModule', () => {
 
     const manifest = JSON.parse(readFileSync(join(workDir, '.fastify-ep.json'), 'utf8'));
     expect(manifest.modules).toEqual(['health', 'orders']);
+  });
+
+  it('skips the test file when withTests is false', () => {
+    workDir = makeScaffoldedProject();
+
+    generateModule({ targetDir: workDir, moduleName: 'orders', withTests: false });
+
+    expect(existsSync(join(workDir, 'src/modules/orders/orders.module.ts'))).toBe(true);
+    expect(existsSync(join(workDir, 'src/modules/orders/orders.test.ts'))).toBe(false);
   });
 
   it('produces valid identifiers for hyphenated module names', () => {
@@ -150,5 +159,21 @@ describe('generateModule', () => {
       LegacyManifestError,
     );
     expect(existsSync(join(workDir, 'src/modules/orders'))).toBe(false);
+  });
+
+  it('exposes the project database strategy to module templates as {{database}}', () => {
+    workDir = makeScaffoldedProject('drizzle');
+    const moduleTemplateDir = mkdtempSync(join(tmpdir(), 'fastify-ep-module-template-'));
+    writeFileSync(join(moduleTemplateDir, 'module.service.ts'), '// database: {{database}}\n');
+
+    try {
+      generateModule({ targetDir: workDir, moduleName: 'orders', moduleTemplateDir });
+    } finally {
+      rmSync(moduleTemplateDir, { recursive: true, force: true });
+    }
+
+    expect(readFileSync(join(workDir, 'src/modules/orders/orders.service.ts'), 'utf8')).toBe(
+      '// database: drizzle\n',
+    );
   });
 });

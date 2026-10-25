@@ -5,6 +5,11 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  workflow_dispatch:
+  schedule:
+    # Weekly: the generated project's dependency ranges have no lockfile, so this
+    # catches upstream releases that break `init` output without any CLI change.
+    - cron: '0 6 * * 1'
 
 jobs:
   lint-and-build:
@@ -26,10 +31,30 @@ jobs:
       - run: npm test
 
   integration:
+    name: integration (${{ matrix.pm }}, ${{ matrix.database }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         pm: [npm, pnpm, yarn]
+        database: [none, drizzle, prisma]
+    env:
+      # Only database projects read this; it is harmless for `none`.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/app
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -40,6 +65,11 @@ jobs:
 
       - name: Enable corepack
         run: corepack enable
+
+      # pnpm 11 changed install behaviour for dependency build scripts; test what users get.
+      - name: Pin pnpm 11
+        if: matrix.pm == 'pnpm'
+        run: corepack prepare pnpm@11 --activate
 
       - run: npm ci
 
@@ -55,23 +85,92 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/harness"
           cd "$RUNNER_TEMP/harness"
-          fastify-ep init demo-app --pm ${{ matrix.pm }}
-
-      - name: fastify-ep generate module
-        working-directory: ${{ runner.temp }}/harness/demo-app
-        run: fastify-ep generate module orders
+          fastify-ep init demo-app --pm ${{ matrix.pm }} --database ${{ matrix.database }}
 
       - name: Install generated project's dependencies
         working-directory: ${{ runner.temp }}/harness/demo-app
         run: ${{ matrix.pm }} install
 
-      - name: Typecheck generated project
+      - name: Doctor (fresh project)
         working-directory: ${{ runner.temp }}/harness/demo-app
-        run: ${{ matrix.pm == 'npm' && 'npm run typecheck' || format('{0} typecheck', matrix.pm) }}
+        run: fastify-ep doctor
 
-      - name: Test generated project
+      - name: Typecheck (fresh project)
         working-directory: ${{ runner.temp }}/harness/demo-app
-        run: ${{ matrix.pm == 'npm' && 'npm test' || format('{0} test', matrix.pm) }}
+        run: ${{ matrix.pm }} run typecheck
+
+      - name: Test (fresh project)
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: ${{ matrix.pm }} run test
+
+      - name: Build (fresh project)
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: ${{ matrix.pm }} run build
+
+      - name: fastify-ep generate module
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: fastify-ep generate module orders
+
+      - name: Doctor (after generate)
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: fastify-ep doctor
+
+      - name: Typecheck (after generate)
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: ${{ matrix.pm }} run typecheck
+
+      - name: Test (after generate)
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: ${{ matrix.pm }} run test
+
+      - name: Build (after generate)
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: ${{ matrix.pm }} run build
+
+      - name: Smoke test the built server (probes + graceful shutdown)
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: |
+          test -z "$(find dist -name '*.test.js')" || { echo "test files leaked into dist/"; exit 1; }
+
+          PORT=3999 node dist/server.js > server.log 2>&1 &
+          pid=$!
+          fail() { echo "smoke test failed: $1"; cat server.log; kill "$pid" 2>/dev/null; exit 1; }
+
+          for _ in $(seq 1 50); do
+            curl -sf http://127.0.0.1:3999/health/live > /dev/null && break
+            sleep 0.2
+          done
+
+          curl -sf http://127.0.0.1:3999/health/live  || fail "/health/live"
+          ready=$(curl -sf http://127.0.0.1:3999/health/ready) || fail "/health/ready"
+          curl -sf http://127.0.0.1:3999/orders       || fail "/orders (generated module)"
+
+          if [ "${{ matrix.database }}" != "none" ]; then
+            echo "$ready" | grep -q '"database":"up"' || fail "database readiness check is not up: $ready"
+          fi
+
+          kill -TERM "$pid"
+          wait "$pid" || fail "server did not exit 0 on SIGTERM"
+          grep -q "shutdown signal received" server.log || fail "shutdown was not logged"
+
+      - name: Smoke test with an unreachable database (not ready, still alive)
+        if: matrix.database != 'none'
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: |
+          DATABASE_URL=postgres://postgres:postgres@127.0.0.1:1/app PORT=3998 node dist/server.js > bad.log 2>&1 &
+          pid=$!
+          fail() { echo "smoke test failed: $1"; cat bad.log; kill "$pid" 2>/dev/null; exit 1; }
+
+          for _ in $(seq 1 50); do
+            curl -sf http://127.0.0.1:3998/health/live > /dev/null && break
+            sleep 0.2
+          done
+
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3998/health/live)" = "200" ] || fail "liveness must stay 200"
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3998/health/ready)" = "503" ] || fail "readiness must be 503"
+
+          kill -TERM "$pid"
+          wait "$pid" || fail "server did not exit 0 on SIGTERM"
 
   publish:
     needs: [lint-and-build, integration]

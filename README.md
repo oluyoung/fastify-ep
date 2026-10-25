@@ -39,7 +39,7 @@ That's it — the new module is generated and wired into the app for you.
 
 ## Module anatomy
 
-Each `generate module <name>` produces four files under
+Each `generate module <name>` produces five files under
 `src/modules/<name>/`:
 
 - `<name>.module.ts` — a `fastify-plugin`-wrapped plugin that decorates the
@@ -47,6 +47,7 @@ Each `generate module <name>` produces four files under
 - `<name>.controller.ts` — route registration
 - `<name>.service.ts` — the module's business logic
 - `<name>.schema.ts` — TypeBox response/request schemas
+- `<name>.test.ts` — an `app.inject()` example test (skip with `--no-test`)
 
 The module is auto-registered in `src/app.ts` at the `// fastify-ep:register`
 marker — no manual wiring required. If that marker is ever removed, the CLI
@@ -55,14 +56,15 @@ tells you exactly what line to add by hand.
 ## Commands
 
 ```
-fastify-ep init [name] [--pm npm|pnpm|yarn]
-fastify-ep generate module <name>
+fastify-ep init [name] [--pm npm|pnpm|yarn] [--database none|drizzle|prisma]
+fastify-ep generate module <name> [--no-test]
 ```
 
 - `init` — scaffold a new project. Prompts interactively for anything not
-  passed as an argument/flag.
+  passed as an argument/flag. `--database drizzle` or `prisma` adds a typed
+  `fastify.db` on PostgreSQL (guide: `docs/database.md` at the workspace root).
 - `generate module <name>` — add a new domain module to an existing
-  `fastify-ep` project.
+  `fastify-ep` project. Pass `--no-test` to skip the generated test file.
 
 ## Why no DI runtime?
 

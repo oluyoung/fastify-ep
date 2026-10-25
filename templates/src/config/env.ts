@@ -8,6 +8,7 @@ const schema = {
     PORT: { type: 'number', default: 3000 },
     HOST: { type: 'string', default: '0.0.0.0' },
     NODE_ENV: { type: 'string', default: 'development' },
+    SHUTDOWN_TIMEOUT_MS: { type: 'number', default: 10000 },
   },
 } as const;
 
@@ -17,6 +18,7 @@ declare module 'fastify' {
       PORT: number;
       HOST: string;
       NODE_ENV: string;
+      SHUTDOWN_TIMEOUT_MS: number;
     };
   }
 }

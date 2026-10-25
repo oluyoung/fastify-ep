@@ -2,10 +2,13 @@ import { readFileSync } from 'node:fs';
 
 export const MANIFEST_SCHEMA_VERSION = 2;
 
+export const DATABASE_STRATEGIES = ['none', 'drizzle', 'prisma'] as const;
+export type DatabaseStrategy = (typeof DATABASE_STRATEGIES)[number];
+
 export interface ManifestArchitecture {
   schema: 'typebox';
   di: 'native';
-  database: 'none';
+  database: DatabaseStrategy;
 }
 
 export interface Manifest {
@@ -40,12 +43,17 @@ function isLegacyManifest(value: Record<string, unknown>): boolean {
   return typeof value.version === 'string' && typeof value.diStrategy === 'string';
 }
 
+function isArchitecture(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const { database } = value as Record<string, unknown>;
+  return DATABASE_STRATEGIES.includes(database as DatabaseStrategy);
+}
+
 function isV2Manifest(value: Record<string, unknown>): boolean {
   return (
     value.schemaVersion === MANIFEST_SCHEMA_VERSION &&
     typeof value.fastifyEpVersion === 'string' &&
-    typeof value.architecture === 'object' &&
-    value.architecture !== null &&
+    isArchitecture(value.architecture) &&
     Array.isArray(value.modules)
   );
 }

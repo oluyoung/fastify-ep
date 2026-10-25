@@ -1,7 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isModuleRegistered } from './register-module.js';
-import { InvalidManifestError, LegacyManifestError, readManifest } from './manifest.js';
+import {
+  InvalidManifestError,
+  LegacyManifestError,
+  readManifest,
+  type DatabaseStrategy,
+} from './manifest.js';
+import { DATABASE_PLUGIN_PATH } from './scaffold.js';
+import { isInfrastructureRegistered, isModuleRegistered } from './register-module.js';
 
 export interface DoctorCheck {
   name: string;
@@ -9,8 +15,8 @@ export interface DoctorCheck {
   detail?: string;
 }
 
-const MIN_NODE_MAJOR = 20;
-const SUPPORTED_FASTIFY_MAJOR = 5;
+export const MIN_NODE_MAJOR = 20;
+export const SUPPORTED_FASTIFY_MAJOR = 5;
 
 const HEALTH_MODULE_FILES = [
   'health.module.ts',
@@ -18,6 +24,30 @@ const HEALTH_MODULE_FILES = [
   'health.service.ts',
   'health.schema.ts',
 ];
+
+const DATABASE_PLUGIN_FILE = `src/${DATABASE_PLUGIN_PATH}.ts`;
+
+/** ORM packages a project with the given strategy must depend on. */
+const DATABASE_DEPENDENCIES: Record<Exclude<DatabaseStrategy, 'none'>, string[]> = {
+  drizzle: ['drizzle-orm', 'postgres'],
+  prisma: ['@prisma/client', '@prisma/adapter-pg'],
+};
+
+/** Files that configure the ORM tooling, relative to the project root. */
+const DATABASE_CONFIG_FILES: Record<Exclude<DatabaseStrategy, 'none'>, string[]> = {
+  drizzle: ['drizzle.config.ts', 'src/infrastructure/database/schema.ts'],
+  prisma: ['prisma.config.ts', 'prisma/schema.prisma'],
+};
+
+/** Prisma 7 supports Node ^20.19 || ^22.12 || >=24. */
+export function prismaSupportsNode(version: string): boolean {
+  const [major, minor] = version
+    .replace(/^v/, '')
+    .split('.')
+    .map((part) => Number.parseInt(part, 10));
+  if (Number.isNaN(major) || Number.isNaN(minor)) return false;
+  return (major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major >= 24;
+}
 
 function nodeMajorVersion(version: string): number {
   return Number.parseInt(version.replace(/^v/, '').split('.')[0] ?? '', 10);
@@ -53,12 +83,14 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
 
   const packageJsonPath = join(cwd, 'package.json');
   let fastifyRange: string | undefined;
+  let dependencies: Record<string, string> = {};
   if (existsSync(packageJsonPath)) {
     try {
       const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
         dependencies?: Record<string, string>;
       };
-      fastifyRange = pkg.dependencies?.fastify;
+      dependencies = pkg.dependencies ?? {};
+      fastifyRange = dependencies.fastify;
     } catch {
       fastifyRange = undefined;
     }
@@ -76,6 +108,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
   });
 
   let manifestModules: string[] | undefined;
+  let database: DatabaseStrategy = 'none';
   if (!isFastifyEpProject) {
     checks.push({
       name: 'manifest schema valid',
@@ -86,6 +119,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
     try {
       const manifest = readManifest(manifestPath);
       manifestModules = manifest.modules;
+      database = manifest.architecture.database;
       checks.push({ name: 'manifest schema valid', pass: true });
     } catch (err) {
       const detail =
@@ -120,9 +154,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
       name: 'all tracked modules exist',
       pass: missingModules.length === 0,
       detail:
-        missingModules.length === 0
-          ? undefined
-          : `missing on disk: ${missingModules.join(', ')}.`,
+        missingModules.length === 0 ? undefined : `missing on disk: ${missingModules.join(', ')}.`,
     });
 
     const unregisteredModules = manifestModules.filter(
@@ -166,7 +198,9 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
   });
 
   const healthDir = join(cwd, 'src', 'modules', 'health');
-  const missingHealthFiles = HEALTH_MODULE_FILES.filter((file) => !existsSync(join(healthDir, file)));
+  const missingHealthFiles = HEALTH_MODULE_FILES.filter(
+    (file) => !existsSync(join(healthDir, file)),
+  );
   const healthRegistered = !!appTsContent && isModuleRegistered(appTsContent, 'health');
   const healthPresent = missingHealthFiles.length === 0 && healthRegistered;
   checks.push({
@@ -183,6 +217,75 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
           .filter(Boolean)
           .join(' '),
   });
+
+  if (database !== 'none') {
+    checks.push(...runDatabaseChecks(cwd, database, dependencies, appTsContent));
+  }
+
+  return checks;
+}
+
+function runDatabaseChecks(
+  cwd: string,
+  database: Exclude<DatabaseStrategy, 'none'>,
+  dependencies: Record<string, string>,
+  appTsContent: string | undefined,
+): DoctorCheck[] {
+  const checks: DoctorCheck[] = [];
+
+  const missingDeps = DATABASE_DEPENDENCIES[database].filter((name) => !dependencies[name]);
+  checks.push({
+    name: `${database} dependencies declared`,
+    pass: missingDeps.length === 0,
+    detail:
+      missingDeps.length === 0
+        ? undefined
+        : `missing from "dependencies" in package.json: ${missingDeps.join(', ')}.`,
+  });
+
+  const missingConfig = DATABASE_CONFIG_FILES[database].filter(
+    (file) => !existsSync(join(cwd, file)),
+  );
+  checks.push({
+    name: `${database} configuration present`,
+    pass: missingConfig.length === 0,
+    detail: missingConfig.length === 0 ? undefined : `missing: ${missingConfig.join(', ')}.`,
+  });
+
+  const pluginExists = existsSync(join(cwd, DATABASE_PLUGIN_FILE));
+  const pluginRegistered =
+    !!appTsContent && isInfrastructureRegistered(appTsContent, DATABASE_PLUGIN_PATH);
+  checks.push({
+    name: 'database plugin present and registered',
+    pass: pluginExists && pluginRegistered,
+    detail:
+      [
+        pluginExists ? undefined : `"${DATABASE_PLUGIN_FILE}" not found.`,
+        pluginRegistered ? undefined : 'the database plugin is not registered in src/app.ts.',
+      ]
+        .filter(Boolean)
+        .join(' ') || undefined,
+  });
+
+  const envConfigPath = join(cwd, 'src', 'config', 'env.ts');
+  const hasDatabaseUrl =
+    existsSync(envConfigPath) && readFileSync(envConfigPath, 'utf8').includes('DATABASE_URL');
+  checks.push({
+    name: 'DATABASE_URL in environment schema',
+    pass: hasDatabaseUrl,
+    detail: hasDatabaseUrl ? undefined : '"DATABASE_URL" is not declared in src/config/env.ts.',
+  });
+
+  if (database === 'prisma') {
+    const nodeOk = prismaSupportsNode(process.version);
+    checks.push({
+      name: 'Node version supported by Prisma',
+      pass: nodeOk,
+      detail: nodeOk
+        ? undefined
+        : `running Node ${process.version}, but Prisma 7 requires Node ^20.19, ^22.12 or >=24.`,
+    });
+  }
 
   return checks;
 }

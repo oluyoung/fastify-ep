@@ -1,11 +1,19 @@
 import * as clack from '@clack/prompts';
 import { generateModule } from '../generate-module.js';
 
-export async function runGenerateModule(moduleName: string, cwd: string): Promise<void> {
+export interface GenerateModuleCommandOptions {
+  withTests?: boolean;
+}
+
+export async function runGenerateModule(
+  moduleName: string,
+  cwd: string,
+  options: GenerateModuleCommandOptions = {},
+): Promise<void> {
   clack.intro('fastify-ep generate module');
 
   try {
-    generateModule({ targetDir: cwd, moduleName });
+    generateModule({ targetDir: cwd, moduleName, withTests: options.withTests });
   } catch (err) {
     clack.log.error(err instanceof Error ? err.message : String(err));
     clack.outro('Failed.');
