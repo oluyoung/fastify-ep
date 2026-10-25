@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - run: npm ci
@@ -60,7 +60,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Enable corepack
@@ -78,6 +78,13 @@ jobs:
       - name: Pack tarball
         run: npm pack --pack-destination "$RUNNER_TEMP"
 
+      - name: Tarball ships every template file
+        run: |
+          tarball=$(ls "$RUNNER_TEMP"/fastify-ep-*.tgz)
+          for f in templates/gitignore template-overlays/drizzle/.env.example template-overlays/prisma/.env.example; do
+            tar -tzf "$tarball" | grep -qx "package/$f" || { echo "missing from tarball: $f"; exit 1; }
+          done
+
       - name: Install CLI from tarball (not the working tree)
         run: npm install -g "$RUNNER_TEMP"/fastify-ep-*.tgz
 
@@ -90,6 +97,10 @@ jobs:
       - name: Install generated project's dependencies
         working-directory: ${{ runner.temp }}/harness/demo-app
         run: ${{ matrix.pm }} install
+
+      - name: Generated project has .gitignore
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: grep -qx '.env' .gitignore
 
       - name: Doctor (fresh project)
         working-directory: ${{ runner.temp }}/harness/demo-app
@@ -184,7 +195,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org
           cache: npm
 

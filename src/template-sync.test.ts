@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -36,6 +37,14 @@ describe('CLI and generated-project manifests stay in sync', () => {
     expect(
       majorOf(range),
       `package.json has "engines.node": "${range}" but src/doctor.ts MIN_NODE_MAJOR is ${MIN_NODE_MAJOR}`,
+    ).toBe(MIN_NODE_MAJOR);
+  });
+
+  it("the template's engines.node matches doctor's minimum Node major", () => {
+    const range = template.engines?.node;
+    expect(
+      majorOf(range),
+      `templates/package.json has "engines.node": "${range}" but src/doctor.ts MIN_NODE_MAJOR is ${MIN_NODE_MAJOR}`,
     ).toBe(MIN_NODE_MAJOR);
   });
 
@@ -93,3 +102,57 @@ describe.each(readdirSync(fileURLToPath(new URL('../template-overlays', import.m
     });
   },
 );
+
+/**
+ * The repo's own .gitignore (e.g. `.env.*`) once silently ignored `.env.example` in the overlays: the
+ * file existed on disk, so tests passed locally, but it was never committed and CI failed.
+ */
+describe('template files are not git-ignored', () => {
+  const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+
+  function listFiles(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = `${dir}/${entry.name}`;
+      return entry.isDirectory() ? listFiles(path) : [path];
+    });
+  }
+
+  function isIgnoredByGit(path: string): boolean | undefined {
+    try {
+      execFileSync('git', ['check-ignore', '-q', path], { cwd: repoRoot, stdio: 'ignore' });
+      return true;
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      return status === 1 ? false : undefined; // 128 / ENOENT: not a git checkout, nothing to check
+    }
+  }
+
+  it.each(['templates', 'template-overlays', 'module-template'])('%s/', (dir) => {
+    const files = listFiles(`${repoRoot}${dir}`).map((file) => file.slice(repoRoot.length));
+    const ignored = files.filter((file) => isIgnoredByGit(file) === true);
+    expect(ignored, `git would not commit these template files: ${ignored.join(', ')}`).toEqual([]);
+  });
+});
+
+/** npm silently omits these names from a published tarball, so a template can't ship them as-is. */
+describe('template files survive `npm pack`', () => {
+  const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+  const dropped = new Set(['.gitignore', '.npmignore']);
+
+  function listFiles(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = `${dir}/${entry.name}`;
+      return entry.isDirectory() ? listFiles(path) : [path];
+    });
+  }
+
+  it.each(['templates', 'template-overlays', 'module-template'])('%s/', (dir) => {
+    const offenders = listFiles(`${repoRoot}${dir}`)
+      .filter((file) => dropped.has(file.slice(file.lastIndexOf('/') + 1)))
+      .map((file) => file.slice(repoRoot.length));
+    expect(
+      offenders,
+      `npm drops these from the tarball; ship them under another name and rename on copy: ${offenders.join(', ')}`,
+    ).toEqual([]);
+  });
+});
