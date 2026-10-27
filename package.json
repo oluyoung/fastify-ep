@@ -1,6 +1,6 @@
 {
   "name": "fastify-ep",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Scaffolds and keeps scaffolding a domain-driven module structure on native Fastify, without a DI runtime.",
   "type": "module",
   "repository": {
@@ -18,7 +18,8 @@
     "dist",
     "templates",
     "template-overlays",
-    "module-template"
+    "module-template",
+    "module-template-awilix"
   ],
   "engines": {
     "node": ">=22"

@@ -2,17 +2,24 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { toCamelCase, toPascalCase } from './case.js';
-import { readManifest } from './manifest.js';
+import { readManifest, type DiScope } from './manifest.js';
 import { insertModuleRegistration } from './register-module.js';
 import { renderTemplate } from './template-engine.js';
 
 const MODULE_TEMPLATE_DIR = fileURLToPath(new URL('../module-template', import.meta.url));
+/** Files that replace the base module template's when the project uses Awilix. */
+const AWILIX_MODULE_TEMPLATE_DIR = fileURLToPath(
+  new URL('../module-template-awilix', import.meta.url),
+);
 
 export interface GenerateModuleOptions {
   targetDir: string;
   moduleName: string;
   withTests?: boolean;
+  /** Awilix projects only; defaults to `singleton`. */
+  scope?: DiScope;
   moduleTemplateDir?: string;
+  awilixTemplateDir?: string;
 }
 
 export class NotScaffoldedError extends Error {
@@ -36,7 +43,9 @@ export function generateModule({
   targetDir,
   moduleName,
   withTests = true,
+  scope = 'singleton',
   moduleTemplateDir = MODULE_TEMPLATE_DIR,
+  awilixTemplateDir = AWILIX_MODULE_TEMPLATE_DIR,
 }: GenerateModuleOptions): void {
   const manifestPath = join(targetDir, '.fastify-ep.json');
   if (!existsSync(manifestPath)) {
@@ -53,15 +62,26 @@ export function generateModule({
     moduleName,
     camelModuleName: toCamelCase(moduleName),
     ModuleName: toPascalCase(moduleName),
-    // Not used by the built-in module template yet; available to database-aware templates.
+    // `database` is not used by the built-in module templates yet; available to database-aware ones.
     database: manifest.architecture.database,
+    di: manifest.architecture.di,
+    lifetime: scope === 'request' ? 'SCOPED' : 'SINGLETON',
   };
 
+  // Template file by suffix ("service.ts"); the Awilix variants replace the native ones.
+  const templateFiles = new Map<string, string>();
+  for (const dir of manifest.architecture.di === 'awilix'
+    ? [moduleTemplateDir, awilixTemplateDir]
+    : [moduleTemplateDir]) {
+    for (const entry of readdirSync(dir)) {
+      templateFiles.set(entry.replace(/^module\./, ''), join(dir, entry));
+    }
+  }
+
   mkdirSync(moduleDir, { recursive: true });
-  for (const entry of readdirSync(moduleTemplateDir)) {
-    const suffix = entry.replace(/^module\./, '');
+  for (const [suffix, templatePath] of templateFiles) {
     if (!withTests && suffix === 'test.ts') continue;
-    const content = readFileSync(join(moduleTemplateDir, entry), 'utf8');
+    const content = readFileSync(templatePath, 'utf8');
     writeFileSync(join(moduleDir, `${moduleName}.${suffix}`), renderTemplate(content, vars));
   }
 

@@ -311,3 +311,91 @@ describe('scaffoldProject with a database', () => {
     expect(pkg.name).toBe('my-app');
   });
 });
+
+describe('scaffoldProject with Awilix', () => {
+  const read = (dir: string, file: string) => readFileSync(join(dir, file), 'utf8');
+
+  function scaffold(database: 'none' | 'drizzle' | 'prisma', di: 'native' | 'awilix' = 'awilix') {
+    workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
+    const targetDir = join(workDir, 'my-app');
+    scaffoldProject({ targetDir, projectName: 'my-app', cliVersion: '0.4.0', database, di });
+    return targetDir;
+  }
+
+  it('overlays the container plugin, merges dependencies, registers it, records the strategy', () => {
+    const targetDir = scaffold('none');
+
+    expect(existsSync(join(targetDir, 'src/infrastructure/di/container.plugin.ts'))).toBe(true);
+    expect(existsSync(join(targetDir, 'src/infrastructure/di/di.types.ts'))).toBe(true);
+    const pkg = JSON.parse(read(targetDir, 'package.json')) as {
+      dependencies: Record<string, string>;
+    };
+    expect(pkg.dependencies).toHaveProperty('@fastify/awilix');
+    expect(pkg.dependencies).toHaveProperty('awilix');
+    expect(pkg.dependencies).toHaveProperty('fastify');
+
+    const appTs = read(targetDir, 'src/app.ts');
+    const plugin =
+      "await fastify.register((await import('./infrastructure/di/container.plugin.js')).default);";
+    expect(appTs.indexOf('envPlugin);')).toBeLessThan(appTs.indexOf(plugin));
+    expect(appTs.indexOf(plugin)).toBeLessThan(appTs.indexOf('health.module.js'));
+
+    const manifest = JSON.parse(read(targetDir, '.fastify-ep.json')) as {
+      architecture: { di: string };
+    };
+    expect(manifest.architecture.di).toBe('awilix');
+  });
+
+  it('without a database, leaves the container free of db registrations and unused imports', () => {
+    const targetDir = scaffold('none');
+
+    const plugin = read(targetDir, 'src/infrastructure/di/container.plugin.ts');
+    expect(plugin).not.toContain('asValue');
+    expect(plugin).not.toContain('diContainer');
+    expect(read(targetDir, 'src/infrastructure/di/di.types.ts')).not.toContain('FastifyInstance');
+  });
+
+  it.each(['drizzle', 'prisma'] as const)(
+    '%s: registers the db client in the container, after the database plugin',
+    (database) => {
+      const targetDir = scaffold(database);
+
+      const plugin = read(targetDir, 'src/infrastructure/di/container.plugin.ts');
+      expect(plugin).toContain("import { asValue } from 'awilix';");
+      expect(plugin).toContain('diContainer.register({ db: asValue(fastify.db) });');
+      expect(read(targetDir, 'src/infrastructure/di/di.types.ts')).toContain(
+        "db: FastifyInstance['db'];",
+      );
+
+      const appTs = read(targetDir, 'src/app.ts');
+      expect(appTs.indexOf('database.plugin.js')).toBeLessThan(
+        appTs.indexOf('container.plugin.js'),
+      );
+    },
+  );
+
+  it('native: adds no DI files', () => {
+    const targetDir = scaffold('none', 'native');
+
+    expect(existsSync(join(targetDir, 'src/infrastructure/di'))).toBe(false);
+    expect(read(targetDir, 'package.json')).not.toContain('awilix');
+  });
+
+  it('fails clearly when the DI overlay does not exist', () => {
+    workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
+    const targetDir = join(workDir, 'my-app');
+    const overlaysDir = join(workDir, 'overlays');
+    mkdirSync(overlaysDir);
+
+    expect(() =>
+      scaffoldProject({
+        targetDir,
+        projectName: 'my-app',
+        cliVersion: '0.4.0',
+        di: 'awilix',
+        overlaysDir,
+      }),
+    ).toThrow(/no template overlay for DI strategy "awilix"/);
+    expect(existsSync(targetDir)).toBe(false);
+  });
+});

@@ -6,6 +6,17 @@ versions may include breaking changes to generated output.
 
 ## [Unreleased]
 
+### Added
+
+- `init --di native|awilix` (and an interactive prompt). `awilix` scaffolds a `@fastify/awilix`
+  container plugin (`src/infrastructure/di/`) with PROXY injection, typed through the `Cradle`
+  interface; with a database, the client is injectable as `db`.
+- `generate module` honours the project's DI strategy. In Awilix projects `--scope request`
+  registers the service per request; the default is a singleton.
+- `doctor` checks Awilix projects: dependencies declared and the container plugin present and
+  registered after the database plugin.
+- `examples/awilix-api`.
+
 ## [0.3.0] — Database Integration
 
 ### Added

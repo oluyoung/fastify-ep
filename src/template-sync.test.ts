@@ -67,42 +67,44 @@ function readText(relativePath: string): string {
 }
 
 /** Overlay files that replace a base file wholesale must stay the base file plus the database lines. */
-describe.each(readdirSync(fileURLToPath(new URL('../template-overlays', import.meta.url))))(
-  'the %s overlay stays in sync with the base templates',
-  (database) => {
-    it('src/config/env.ts is the base env.ts plus DATABASE_URL lines', () => {
-      const overlay = readText(`../template-overlays/${database}/src/config/env.ts`);
-      const withoutDatabase = overlay
-        .split('\n')
-        .filter((line) => !line.includes('DATABASE_URL'))
-        .join('\n');
-      expect(withoutDatabase).toBe(readText('../templates/src/config/env.ts'));
-      expect(overlay).toContain('DATABASE_URL');
-    });
+describe.each(
+  // `di/` holds the DI strategy overlays, which add files rather than replace base ones.
+  readdirSync(fileURLToPath(new URL('../template-overlays', import.meta.url))).filter(
+    (name) => name !== 'di',
+  ),
+)('the %s overlay stays in sync with the base templates', (database) => {
+  it('src/config/env.ts is the base env.ts plus DATABASE_URL lines', () => {
+    const overlay = readText(`../template-overlays/${database}/src/config/env.ts`);
+    const withoutDatabase = overlay
+      .split('\n')
+      .filter((line) => !line.includes('DATABASE_URL'))
+      .join('\n');
+    expect(withoutDatabase).toBe(readText('../templates/src/config/env.ts'));
+    expect(overlay).toContain('DATABASE_URL');
+  });
 
-    it('vitest.config.ts is the base config plus the test env', () => {
-      const overlay = readText(`../template-overlays/${database}/vitest.config.ts`);
-      const withoutDatabase = overlay
-        .split('\n')
-        .filter(
-          (line) =>
-            !line.includes('DATABASE_URL') && !line.trim().startsWith('// Clients connect lazily'),
-        )
-        .join('\n');
-      expect(withoutDatabase).toBe(readText('../templates/vitest.config.ts'));
-    });
+  it('vitest.config.ts is the base config plus the test env', () => {
+    const overlay = readText(`../template-overlays/${database}/vitest.config.ts`);
+    const withoutDatabase = overlay
+      .split('\n')
+      .filter(
+        (line) =>
+          !line.includes('DATABASE_URL') && !line.trim().startsWith('// Clients connect lazily'),
+      )
+      .join('\n');
+    expect(withoutDatabase).toBe(readText('../templates/vitest.config.ts'));
+  });
 
-    it('does not redeclare tooling that the base template already pins', () => {
-      const overlay = readPackageJson(`../template-overlays/${database}/package.json`);
-      for (const name of ['typescript', 'vitest', 'tsx', '@types/node']) {
-        expect(
-          overlay.devDependencies?.[name],
-          `overlay should not redeclare ${name}`,
-        ).toBeUndefined();
-      }
-    });
-  },
-);
+  it('does not redeclare tooling that the base template already pins', () => {
+    const overlay = readPackageJson(`../template-overlays/${database}/package.json`);
+    for (const name of ['typescript', 'vitest', 'tsx', '@types/node']) {
+      expect(
+        overlay.devDependencies?.[name],
+        `overlay should not redeclare ${name}`,
+      ).toBeUndefined();
+    }
+  });
+});
 
 /**
  * The repo's own .gitignore (e.g. `.env.*`) once silently ignored `.env.example` in the overlays: the
@@ -128,11 +130,16 @@ describe('template files are not git-ignored', () => {
     }
   }
 
-  it.each(['templates', 'template-overlays', 'module-template'])('%s/', (dir) => {
-    const files = listFiles(`${repoRoot}${dir}`).map((file) => file.slice(repoRoot.length));
-    const ignored = files.filter((file) => isIgnoredByGit(file) === true);
-    expect(ignored, `git would not commit these template files: ${ignored.join(', ')}`).toEqual([]);
-  });
+  it.each(['templates', 'template-overlays', 'module-template', 'module-template-awilix'])(
+    '%s/',
+    (dir) => {
+      const files = listFiles(`${repoRoot}${dir}`).map((file) => file.slice(repoRoot.length));
+      const ignored = files.filter((file) => isIgnoredByGit(file) === true);
+      expect(ignored, `git would not commit these template files: ${ignored.join(', ')}`).toEqual(
+        [],
+      );
+    },
+  );
 });
 
 /** npm silently omits these names from a published tarball, so a template can't ship them as-is. */
@@ -147,15 +154,18 @@ describe('template files survive `npm pack`', () => {
     });
   }
 
-  it.each(['templates', 'template-overlays', 'module-template'])('%s/', (dir) => {
-    const offenders = listFiles(`${repoRoot}${dir}`)
-      .filter((file) => dropped.has(file.slice(file.lastIndexOf('/') + 1)))
-      .map((file) => file.slice(repoRoot.length));
-    expect(
-      offenders,
-      `npm drops these from the tarball; ship them under another name and rename on copy: ${offenders.join(', ')}`,
-    ).toEqual([]);
-  });
+  it.each(['templates', 'template-overlays', 'module-template', 'module-template-awilix'])(
+    '%s/',
+    (dir) => {
+      const offenders = listFiles(`${repoRoot}${dir}`)
+        .filter((file) => dropped.has(file.slice(file.lastIndexOf('/') + 1)))
+        .map((file) => file.slice(repoRoot.length));
+      expect(
+        offenders,
+        `npm drops these from the tarball; ship them under another name and rename on copy: ${offenders.join(', ')}`,
+      ).toEqual([]);
+    },
+  );
 });
 
 /** examples/ is generated by `npm run examples`; CI diffs it, this catches a hand-edited or stale manifest earlier. */
@@ -165,14 +175,16 @@ describe('examples/', () => {
   it.each([
     ['drizzle-api', 'drizzle'],
     ['prisma-api', 'prisma'],
+    ['awilix-api', 'drizzle'],
   ])('%s is a %s project at the current CLI version', (name, database) => {
     const manifest = JSON.parse(
       readFileSync(`${examplesDir}/${name}/.fastify-ep.json`, 'utf8'),
     ) as {
       fastifyEpVersion: string;
-      architecture: { database: string };
+      architecture: { database: string; di: string };
     };
     expect(manifest.architecture.database).toBe(database);
+    expect(manifest.architecture.di).toBe(name === 'awilix-api' ? 'awilix' : 'native');
     expect(
       manifest.fastifyEpVersion,
       'examples are stale: run `npm run build && npm run examples`',

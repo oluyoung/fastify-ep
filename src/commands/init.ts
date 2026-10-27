@@ -1,7 +1,12 @@
 import { resolve } from 'node:path';
 import * as clack from '@clack/prompts';
 import { detectPackageManager } from '../detect-package-manager.js';
-import { DATABASE_STRATEGIES, type DatabaseStrategy } from '../manifest.js';
+import {
+  DATABASE_STRATEGIES,
+  DI_STRATEGIES,
+  type DatabaseStrategy,
+  type DiStrategy,
+} from '../manifest.js';
 import { PACKAGE_MANAGERS, type PackageManager } from '../package-manager.js';
 import { scaffoldProject } from '../scaffold.js';
 import { validateInit } from '../validate-init.js';
@@ -9,12 +14,18 @@ import { validateInit } from '../validate-init.js';
 export interface InitOptions {
   pm?: PackageManager;
   database?: DatabaseStrategy;
+  di?: DiStrategy;
 }
 
 const DATABASE_LABELS: Record<DatabaseStrategy, string> = {
   none: 'None',
   drizzle: 'Drizzle (PostgreSQL)',
   prisma: 'Prisma (PostgreSQL)',
+};
+
+const DI_LABELS: Record<DiStrategy, string> = {
+  native: 'Native Fastify (recommended)',
+  awilix: 'Awilix',
 };
 
 export function nextSteps(
@@ -84,6 +95,23 @@ export async function runInit(
     database = answer;
   }
 
+  let di = options.di;
+  if (!di) {
+    const answer = await clack.select({
+      message: 'Dependency management?',
+      options: DI_STRATEGIES.map((strategy) => ({
+        value: strategy,
+        label: DI_LABELS[strategy],
+      })),
+      initialValue: 'native' as DiStrategy,
+    });
+    if (clack.isCancel(answer)) {
+      clack.cancel('Cancelled.');
+      process.exit(1);
+    }
+    di = answer;
+  }
+
   const result = validateInit(projectName, cwd);
   if (!result.valid) {
     clack.log.error(result.reason);
@@ -93,7 +121,7 @@ export async function runInit(
 
   const targetDir = resolve(cwd, projectName);
   try {
-    scaffoldProject({ targetDir, projectName, cliVersion, database, packageManager });
+    scaffoldProject({ targetDir, projectName, cliVersion, database, di, packageManager });
   } catch (err) {
     clack.log.error(err instanceof Error ? err.message : String(err));
     clack.outro('Failed.');

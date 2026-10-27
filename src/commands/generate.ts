@@ -1,8 +1,10 @@
 import * as clack from '@clack/prompts';
 import { generateModule } from '../generate-module.js';
+import type { DiScope } from '../manifest.js';
 
 export interface GenerateModuleCommandOptions {
   withTests?: boolean;
+  scope?: DiScope;
 }
 
 export async function runGenerateModule(
@@ -13,7 +15,12 @@ export async function runGenerateModule(
   clack.intro('fastify-ep generate module');
 
   try {
-    generateModule({ targetDir: cwd, moduleName, withTests: options.withTests });
+    generateModule({
+      targetDir: cwd,
+      moduleName,
+      withTests: options.withTests,
+      scope: options.scope,
+    });
   } catch (err) {
     clack.log.error(err instanceof Error ? err.message : String(err));
     clack.outro('Failed.');

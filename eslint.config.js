@@ -16,6 +16,12 @@ export default tseslint.config(
   {
     // Not real TS: `{{moduleName}}`/`{{ModuleName}}` placeholders are rendered into
     // identifiers before these files exist as valid TypeScript.
-    ignores: ['dist/**', 'module-template/**', 'examples/**'],
+    ignores: [
+      'dist/**',
+      'module-template/**',
+      'module-template-awilix/**',
+      'template-overlays/di/**',
+      'examples/**',
+    ],
   },
 );

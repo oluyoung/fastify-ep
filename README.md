@@ -56,23 +56,29 @@ tells you exactly what line to add by hand.
 ## Commands
 
 ```
-fastify-ep init [name] [--pm npm|pnpm|yarn] [--database none|drizzle|prisma]
-fastify-ep generate module <name> [--no-test]
+fastify-ep init [name] [--pm npm|pnpm|yarn] [--database none|drizzle|prisma] [--di native|awilix]
+fastify-ep generate module <name> [--no-test] [--scope singleton|request]
 ```
 
 - `init` — scaffold a new project. Prompts interactively for anything not
   passed as an argument/flag. `--database drizzle` or `prisma` adds a typed
   `fastify.db` on PostgreSQL (guide: `docs/database.md` at the workspace root).
+  `--di awilix` adds an [Awilix](https://github.com/jeffijoe/awilix) container via
+  `@fastify/awilix`; the default, `native`, stays plain Fastify decorators and is
+  the recommended choice.
 - `generate module <name>` — add a new domain module to an existing
-  `fastify-ep` project. Pass `--no-test` to skip the generated test file.
+  `fastify-ep` project. Pass `--no-test` to skip the generated test file. In an Awilix
+  project, `--scope request` registers the module's service per request instead of as a
+  singleton (default).
 
-## Why no DI runtime?
+## Why no DI runtime by default?
 
 Native Fastify already gives you encapsulation (via `fastify-plugin`) and
 dependency access (via decorators) without a separate container, decorator
 metadata, or reflection. `fastify-ep` leans into that instead of layering a
 DI framework on top of it — modules stay plain TypeScript, and there's one
-fewer abstraction between you and the Fastify instance.
+fewer abstraction between you and the Fastify instance. If you want a container,
+`--di awilix` is opt-in.
 
 ## License
 

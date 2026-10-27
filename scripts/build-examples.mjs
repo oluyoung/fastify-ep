@@ -16,8 +16,9 @@ if (!existsSync(cli)) {
 }
 
 const EXAMPLES = [
-  { name: 'drizzle-api', database: 'drizzle' },
-  { name: 'prisma-api', database: 'prisma' },
+  { name: 'drizzle-api', database: 'drizzle', di: 'native' },
+  { name: 'prisma-api', database: 'prisma', di: 'native' },
+  { name: 'awilix-api', database: 'drizzle', di: 'awilix' },
 ];
 
 function run(args, cwd) {
@@ -25,10 +26,10 @@ function run(args, cwd) {
 }
 
 mkdirSync(examplesDir, { recursive: true });
-for (const { name, database } of EXAMPLES) {
+for (const { name, database, di } of EXAMPLES) {
   const dir = join(examplesDir, name);
   rmSync(dir, { recursive: true, force: true });
-  run(['init', name, '--pm', 'npm', '--database', database], examplesDir);
+  run(['init', name, '--pm', 'npm', '--database', database, '--di', di], examplesDir);
   run(['generate', 'module', 'orders'], dir);
 }
 console.log(`\nGenerated ${EXAMPLES.map((e) => e.name).join(', ')} in examples/`);

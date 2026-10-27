@@ -31,13 +31,20 @@ jobs:
       - run: npm test
 
   integration:
-    name: integration (${{ matrix.pm }}, ${{ matrix.database }})
+    name: integration (${{ matrix.pm }}, ${{ matrix.database }}, ${{ matrix.di }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         pm: [npm, pnpm, yarn]
         database: [none, drizzle, prisma]
+        di: [native]
+        # Awilix is a thin overlay, so it gets a reduced matrix instead of doubling every job.
+        include:
+          - { pm: npm, database: none, di: awilix }
+          - { pm: npm, database: drizzle, di: awilix }
+          - { pm: npm, database: prisma, di: awilix }
+          - { pm: pnpm, database: none, di: awilix }
     env:
       # Only database projects read this; it is harmless for `none`.
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/app
@@ -92,7 +99,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/harness"
           cd "$RUNNER_TEMP/harness"
-          fastify-ep init demo-app --pm ${{ matrix.pm }} --database ${{ matrix.database }}
+          fastify-ep init demo-app --pm ${{ matrix.pm }} --database ${{ matrix.database }} --di ${{ matrix.di }}
 
       - name: Install generated project's dependencies
         working-directory: ${{ runner.temp }}/harness/demo-app
@@ -147,7 +154,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        example: [drizzle-api, prisma-api]
+        example: [drizzle-api, prisma-api, awilix-api]
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/app
     services:
@@ -204,7 +211,7 @@ jobs:
 
       - name: Smoke test
         working-directory: examples/${{ matrix.example }}
-        run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.example == 'drizzle-api' && 'drizzle' || 'prisma' }}
+        run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.example == 'prisma-api' && 'prisma' || 'drizzle' }}
 
   publish:
     needs: [lint-and-build, integration, examples]

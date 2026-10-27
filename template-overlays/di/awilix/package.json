@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@fastify/awilix": "^8.3.2",
+    "awilix": "^13.0.5"
+  }
+}
