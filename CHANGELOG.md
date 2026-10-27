@@ -4,10 +4,15 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
-## [Unreleased] — v0.3 Database Integration
+## [Unreleased]
+
+## [0.3.0] — Database Integration
 
 ### Added
 
+- `examples/drizzle-api` and `examples/prisma-api`: real `init --database` output plus a generated
+  `orders` module, regenerated with `npm run examples`. CI fails if they drift from the CLI and runs
+  install, typecheck, test, build and the readiness smoke test on each against Postgres.
 - **Database strategies**: `fastify-ep init --database none|drizzle|prisma` (or the
   interactive "Database?" prompt). PostgreSQL only. `none` stays the default.
 - Database projects get `src/infrastructure/database/` with a Fastify plugin that
