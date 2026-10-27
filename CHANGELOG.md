@@ -4,6 +4,20 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
+## [Unreleased]
+
+### Added
+
+- `init --preset minimal|standard|production` and a `Preset?` prompt. `standard` is the default
+  and generates exactly what 0.5.0 did. `minimal` drops Swagger / OpenAPI. `production` adds
+  `@fastify/helmet`, `@fastify/cors` (no origin allowed until `CORS_ORIGIN` is set),
+  `@fastify/rate-limit` (`RATE_LIMIT_MAX`, default 100 per minute, `/health*` exempt) and a
+  `Dockerfile` and `.dockerignore` for the chosen package manager only.
+- The manifest records `architecture.preset` for `minimal` and `production`; it is omitted for
+  `standard`. No schema bump, and older manifests stay valid.
+- `examples/minimal-api` and `examples/production-api`; `scripts/smoke.sh` checks each preset
+  (`PRESET=...`); CI builds the Production Docker image for npm, pnpm and yarn.
+
 ## [0.5.0] — Generation Expansion
 
 ### Added

@@ -31,7 +31,7 @@ jobs:
       - run: npm test
 
   integration:
-    name: integration (${{ matrix.pm }}, ${{ matrix.database }}, ${{ matrix.di }})
+    name: integration (${{ matrix.pm }}, ${{ matrix.database }}, ${{ matrix.di }}, ${{ matrix.preset || 'standard' }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -45,6 +45,11 @@ jobs:
           - { pm: npm, database: drizzle, di: awilix }
           - { pm: npm, database: prisma, di: awilix }
           - { pm: pnpm, database: none, di: awilix }
+          # Presets other than the default. Production also builds the Docker image, once per package manager.
+          - { pm: npm, database: none, di: native, preset: minimal }
+          - { pm: npm, database: none, di: native, preset: production }
+          - { pm: pnpm, database: prisma, di: native, preset: production }
+          - { pm: yarn, database: prisma, di: native, preset: production }
     env:
       # Only database projects read this; it is harmless for `none`.
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/app
@@ -99,7 +104,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/harness"
           cd "$RUNNER_TEMP/harness"
-          fastify-ep init demo-app --pm ${{ matrix.pm }} --database ${{ matrix.database }} --di ${{ matrix.di }}
+          fastify-ep init demo-app --pm ${{ matrix.pm }} --preset ${{ matrix.preset || 'standard' }} --database ${{ matrix.database }} --di ${{ matrix.di }}
 
       - name: Install generated project's dependencies
         working-directory: ${{ runner.temp }}/harness/demo-app
@@ -162,14 +167,26 @@ jobs:
 
       - name: Smoke test (probes, CRUD routes, graceful shutdown, unreachable database)
         working-directory: ${{ runner.temp }}/harness/demo-app
+        env:
+          PRESET: ${{ matrix.preset || 'standard' }}
         run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.database }} users
+
+      - name: Build the Docker image (needs the lockfile from the install step)
+        if: matrix.preset == 'production'
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: docker build -t demo-app .
 
   examples:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        example: [drizzle-api, prisma-api, awilix-api]
+        include:
+          - { example: drizzle-api, database: drizzle }
+          - { example: prisma-api, database: prisma }
+          - { example: awilix-api, database: drizzle }
+          - { example: minimal-api, database: none, preset: minimal }
+          - { example: production-api, database: drizzle, preset: production }
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/app
     services:
@@ -225,12 +242,15 @@ jobs:
         run: npm run build
 
       - name: Apply the schema to Postgres
+        if: matrix.database != 'none'
         working-directory: examples/${{ matrix.example }}
-        run: ${{ matrix.example == 'prisma-api' && 'npx prisma db push' || 'npx drizzle-kit push --force' }}
+        run: ${{ matrix.database == 'prisma' && 'npx prisma db push' || 'npx drizzle-kit push --force' }}
 
       - name: Smoke test
         working-directory: examples/${{ matrix.example }}
-        run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.example == 'prisma-api' && 'prisma' || 'drizzle' }} users
+        env:
+          PRESET: ${{ matrix.preset || 'standard' }}
+        run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.database }} users
 
   publish:
     needs: [lint-and-build, integration, examples]

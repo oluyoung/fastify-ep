@@ -64,7 +64,13 @@ describe('scaffoldProject', () => {
     const templatesDir = makeUnmarkedTemplatesDir();
 
     expect(() =>
-      scaffoldProject({ targetDir, projectName: 'my-app', cliVersion: '0.1.0', templatesDir }),
+      scaffoldProject({
+        targetDir,
+        projectName: 'my-app',
+        cliVersion: '0.1.0',
+        templatesDir,
+        preset: 'minimal',
+      }),
     ).toThrow(/fastify-ep:register/);
     expect(existsSync(targetDir)).toBe(false);
   });
@@ -76,7 +82,13 @@ describe('scaffoldProject', () => {
     const templatesDir = makeUnmarkedTemplatesDir();
 
     expect(() =>
-      scaffoldProject({ targetDir, projectName: 'my-app', cliVersion: '0.1.0', templatesDir }),
+      scaffoldProject({
+        targetDir,
+        projectName: 'my-app',
+        cliVersion: '0.1.0',
+        templatesDir,
+        preset: 'minimal',
+      }),
     ).toThrow(/fastify-ep:register/);
     expect(existsSync(targetDir)).toBe(true);
     expect(existsSync(join(targetDir, 'src'))).toBe(false);
@@ -235,6 +247,7 @@ describe('scaffoldProject with a database', () => {
         cliVersion: '0.3.0',
         database: 'prisma',
         overlaysDir: join(workDir, 'nope'),
+        preset: 'minimal',
       }),
     ).toThrow(/no template overlay for database "prisma"/);
     expect(existsSync(targetDir)).toBe(false);
@@ -257,6 +270,7 @@ describe('scaffoldProject with a database', () => {
         database: 'drizzle',
         templatesDir,
         overlaysDir,
+        preset: 'minimal',
       }),
     ).toThrow(/fastify-ep:infrastructure/);
     expect(existsSync(targetDir)).toBe(true);
@@ -300,6 +314,7 @@ describe('scaffoldProject with a database', () => {
       database: 'drizzle',
       templatesDir,
       overlaysDir,
+      preset: 'minimal',
     });
     rmSync(templatesDir, { recursive: true, force: true });
 
@@ -394,8 +409,101 @@ describe('scaffoldProject with Awilix', () => {
         cliVersion: '0.4.0',
         di: 'awilix',
         overlaysDir,
+        preset: 'minimal',
       }),
     ).toThrow(/no template overlay for DI strategy "awilix"/);
+    expect(existsSync(targetDir)).toBe(false);
+  });
+});
+
+describe('scaffoldProject presets', () => {
+  function scaffold(options: Partial<Parameters<typeof scaffoldProject>[0]>) {
+    workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-preset-'));
+    const targetDir = join(workDir, 'my-app');
+    scaffoldProject({ targetDir, projectName: 'my-app', cliVersion: '0.1.0', ...options });
+    return targetDir;
+  }
+  const read = (dir: string, path: string) => readFileSync(join(dir, path), 'utf8');
+  const manifestOf = (dir: string) =>
+    JSON.parse(read(dir, '.fastify-ep.json')) as { architecture: { preset?: string } };
+  const depsOf = (dir: string) =>
+    (JSON.parse(read(dir, 'package.json')) as { dependencies: Record<string, string> })
+      .dependencies;
+
+  it('standard is the default: Swagger, no preset key, no security plugin, no Dockerfile', () => {
+    const dir = scaffold({});
+    expect(read(dir, 'src/app.ts')).toContain('swaggerUi');
+    expect(depsOf(dir)['@fastify/swagger']).toBeDefined();
+    expect(manifestOf(dir).architecture).not.toHaveProperty('preset');
+    expect(existsSync(join(dir, 'Dockerfile'))).toBe(false);
+    expect(existsSync(join(dir, 'src/infrastructure/http/security.plugin.ts'))).toBe(false);
+    expect(read(dir, 'src/config/env.ts')).not.toContain('CORS_ORIGIN');
+  });
+
+  it('minimal has no Swagger and records the preset', () => {
+    const dir = scaffold({ preset: 'minimal' });
+    expect(read(dir, 'src/app.ts')).not.toContain('swagger');
+    expect(depsOf(dir)['@fastify/swagger']).toBeUndefined();
+    expect(depsOf(dir)['@fastify/swagger-ui']).toBeUndefined();
+    expect(manifestOf(dir).architecture.preset).toBe('minimal');
+    expect(existsSync(join(dir, 'src/errors/error-handler.ts'))).toBe(true);
+  });
+
+  it.each(['none', 'drizzle', 'prisma'] as const)(
+    'production (%s) adds the security plugin, its dependencies and env keys',
+    (database) => {
+      const dir = scaffold({ preset: 'production', database });
+      const appTs = read(dir, 'src/app.ts');
+      expect(appTs).toContain(
+        "await fastify.register((await import('./infrastructure/http/security.plugin.js')).default);",
+      );
+      expect(appTs).toContain('swaggerUi');
+      const deps = depsOf(dir);
+      for (const name of ['@fastify/helmet', '@fastify/cors', '@fastify/rate-limit']) {
+        expect(deps[name], name).toBeDefined();
+      }
+      const env = read(dir, 'src/config/env.ts');
+      expect(env).toContain("CORS_ORIGIN: { type: 'string', default: '' },");
+      expect(env).toContain('RATE_LIMIT_MAX: number;');
+      expect(manifestOf(dir).architecture.preset).toBe('production');
+    },
+  );
+
+  it.each(['npm', 'pnpm', 'yarn'] as const)(
+    'production generates only the %s Dockerfile',
+    (packageManager) => {
+      const dir = scaffold({ preset: 'production', packageManager });
+      const dockerfile = read(dir, 'Dockerfile');
+      const lockfile = { npm: 'package-lock.json', pnpm: 'pnpm-lock.yaml', yarn: 'yarn.lock' }[
+        packageManager
+      ];
+      expect(dockerfile).toContain(lockfile);
+      for (const other of ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock']) {
+        if (other !== lockfile) expect(dockerfile).not.toContain(other);
+      }
+      expect(existsSync(join(dir, '.dockerignore'))).toBe(true);
+    },
+  );
+
+  it('production registers the security plugin before the DI container', () => {
+    const dir = scaffold({ preset: 'production', database: 'drizzle', di: 'awilix' });
+    const appTs = read(dir, 'src/app.ts');
+    expect(appTs.indexOf('security.plugin')).toBeGreaterThan(-1);
+    expect(appTs.indexOf('security.plugin')).toBeLessThan(appTs.indexOf('container.plugin'));
+  });
+
+  it('rolls back a production scaffold that fails', () => {
+    workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-preset-'));
+    const targetDir = join(workDir, 'my-app');
+    expect(() =>
+      scaffoldProject({
+        targetDir,
+        projectName: 'my-app',
+        cliVersion: '0.1.0',
+        preset: 'production',
+        overlaysDir: join(workDir, 'nope'),
+      }),
+    ).toThrow(/no template overlay for preset "production"/);
     expect(existsSync(targetDir)).toBe(false);
   });
 });

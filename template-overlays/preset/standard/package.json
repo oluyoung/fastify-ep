@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@fastify/swagger": "^9.0.0",
+    "@fastify/swagger-ui": "^6.0.0"
+  }
+}

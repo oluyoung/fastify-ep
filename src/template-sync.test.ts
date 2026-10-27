@@ -68,9 +68,9 @@ function readText(relativePath: string): string {
 
 /** Overlay files that replace a base file wholesale must stay the base file plus the database lines. */
 describe.each(
-  // `di/` holds the DI strategy overlays, which add files rather than replace base ones.
+  // `di/`, `preset/` and `docker/` hold overlays that add files rather than replace base ones.
   readdirSync(fileURLToPath(new URL('../template-overlays', import.meta.url))).filter(
-    (name) => name !== 'di',
+    (name) => !['di', 'preset', 'docker'].includes(name),
   ),
 )('the %s overlay stays in sync with the base templates', (database) => {
   it('src/config/env.ts is the base env.ts plus DATABASE_URL lines', () => {

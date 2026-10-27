@@ -16,9 +16,11 @@ if (!existsSync(cli)) {
 }
 
 const EXAMPLES = [
-  { name: 'drizzle-api', database: 'drizzle', di: 'native' },
-  { name: 'prisma-api', database: 'prisma', di: 'native' },
-  { name: 'awilix-api', database: 'drizzle', di: 'awilix' },
+  { name: 'drizzle-api', database: 'drizzle', di: 'native', preset: 'standard' },
+  { name: 'prisma-api', database: 'prisma', di: 'native', preset: 'standard' },
+  { name: 'awilix-api', database: 'drizzle', di: 'awilix', preset: 'standard' },
+  { name: 'minimal-api', database: 'none', di: 'native', preset: 'minimal' },
+  { name: 'production-api', database: 'drizzle', di: 'native', preset: 'production' },
 ];
 
 function run(args, cwd) {
@@ -26,10 +28,13 @@ function run(args, cwd) {
 }
 
 mkdirSync(examplesDir, { recursive: true });
-for (const { name, database, di } of EXAMPLES) {
+for (const { name, database, di, preset } of EXAMPLES) {
   const dir = join(examplesDir, name);
   rmSync(dir, { recursive: true, force: true });
-  run(['init', name, '--pm', 'npm', '--database', database, '--di', di], examplesDir);
+  run(
+    ['init', name, '--pm', 'npm', '--preset', preset, '--database', database, '--di', di],
+    examplesDir,
+  );
   run(['generate', 'module', 'orders'], dir);
   // The `g` alias, so CI exercises it too.
   run(['g', 'resource', 'users', '--crud'], dir);

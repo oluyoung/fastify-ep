@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Smoke-tests a built generated project (run from the project root, after `build`).
-# Usage: smoke.sh <none|drizzle|prisma> [crud-resource]
+# Usage: [PRESET=minimal|standard|production] smoke.sh <none|drizzle|prisma> [crud-resource]
+# PRESET defaults to standard; minimal and production get extra checks.
 # With a resource name (generated with `--crud`), also exercises its five routes. Database projects
 # need that resource's schema applied to the database first.
 set -u
 database="${1:?usage: smoke.sh <none|drizzle|prisma> [crud-resource]}"
 resource="${2:-}"
+preset="${PRESET:-standard}"
 
 echo "::group::Smoke test the built server (probes + graceful shutdown)"
 test -z "$(find dist -name '*.test.js')" || { echo "test files leaked into dist/"; exit 1; }
@@ -47,6 +49,46 @@ kill -TERM "$pid"
 wait "$pid" || fail "server did not exit 0 on SIGTERM"
 grep -q "shutdown signal received" server.log || fail "shutdown was not logged"
 echo "::endgroup::"
+
+if [ "$preset" = "minimal" ]; then
+  echo "::group::Smoke test the Minimal preset (no OpenAPI)"
+  PORT=3997 node dist/server.js > minimal.log 2>&1 &
+  pid=$!
+  for _ in $(seq 1 50); do
+    curl -sf http://127.0.0.1:3997/health/live > /dev/null && break
+    sleep 0.2
+  done
+  [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3997/documentation/json)" = "404" ] || fail "Minimal must not serve /documentation" minimal.log
+  kill -TERM "$pid"
+  wait "$pid" || fail "server did not exit 0 on SIGTERM" minimal.log
+  echo "::endgroup::"
+fi
+
+if [ "$preset" = "production" ]; then
+  echo "::group::Smoke test the Production preset (security headers, CORS, rate limit)"
+  PORT=3997 RATE_LIMIT_MAX=3 CORS_ORIGIN=https://app.example.com node dist/server.js > production.log 2>&1 &
+  pid=$!
+  for _ in $(seq 1 50); do
+    curl -sf http://127.0.0.1:3997/health/live > /dev/null && break
+    sleep 0.2
+  done
+  headers=$(curl -si http://127.0.0.1:3997/documentation/json -H 'Origin: https://app.example.com') || fail "request" production.log
+  echo "$headers" | grep -qi '^x-content-type-options: nosniff'              || fail "helmet headers missing" production.log
+  echo "$headers" | grep -qi '^content-security-policy:'                      || fail "content-security-policy missing" production.log
+  echo "$headers" | grep -qi '^access-control-allow-origin: https://app.example.com' || fail "CORS must allow the configured origin" production.log
+  curl -si http://127.0.0.1:3997/documentation/json -H 'Origin: https://evil.example' | grep -qi '^access-control-allow-origin' && fail "CORS must not allow other origins" production.log
+  limited=""
+  for _ in 1 2 3 4 5; do
+    limited=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3997/documentation/json)
+  done
+  [ "$limited" = "429" ] || fail "rate limit must return 429 once exceeded (got $limited)" production.log
+  for _ in 1 2 3 4 5 6; do
+    [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3997/health/live)" = "200" ] || fail "health probes must never be rate limited" production.log
+  done
+  kill -TERM "$pid"
+  wait "$pid" || fail "server did not exit 0 on SIGTERM" production.log
+  echo "::endgroup::"
+fi
 
 if [ "$database" != "none" ]; then
   echo "::group::Smoke test with an unreachable database (not ready, still alive)"

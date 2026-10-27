@@ -3,9 +3,12 @@ import * as clack from '@clack/prompts';
 import { detectPackageManager } from '../detect-package-manager.js';
 import {
   DATABASE_STRATEGIES,
+  DEFAULT_PRESET,
   DI_STRATEGIES,
+  PRESETS,
   type DatabaseStrategy,
   type DiStrategy,
+  type Preset,
 } from '../manifest.js';
 import { PACKAGE_MANAGERS, type PackageManager } from '../package-manager.js';
 import { scaffoldProject } from '../scaffold.js';
@@ -13,9 +16,16 @@ import { validateInit } from '../validate-init.js';
 
 export interface InitOptions {
   pm?: PackageManager;
+  preset?: Preset;
   database?: DatabaseStrategy;
   di?: DiStrategy;
 }
+
+const PRESET_LABELS: Record<Preset, string> = {
+  minimal: 'Minimal (no OpenAPI)',
+  standard: 'Standard (OpenAPI, recommended)',
+  production: 'Production (Standard + security headers, CORS, rate limiting, Dockerfile)',
+};
 
 const DATABASE_LABELS: Record<DatabaseStrategy, string> = {
   none: 'None',
@@ -32,6 +42,7 @@ export function nextSteps(
   projectName: string,
   packageManager: PackageManager,
   database: DatabaseStrategy,
+  preset: Preset = DEFAULT_PRESET,
 ): string {
   const steps = [`cd ${projectName}`];
   if (database !== 'none') {
@@ -39,6 +50,9 @@ export function nextSteps(
   }
   steps.push(`${packageManager} install`);
   steps.push(`${packageManager} run dev`);
+  if (preset === 'production') {
+    steps.push(`docker build -t ${projectName} .  # needs the lockfile from the install above`);
+  }
   return steps.join('\n');
 }
 
@@ -76,6 +90,20 @@ export async function runInit(
       process.exit(1);
     }
     packageManager = answer;
+  }
+
+  let preset = options.preset;
+  if (!preset) {
+    const answer = await clack.select({
+      message: 'Preset?',
+      options: PRESETS.map((value) => ({ value, label: PRESET_LABELS[value] })),
+      initialValue: DEFAULT_PRESET,
+    });
+    if (clack.isCancel(answer)) {
+      clack.cancel('Cancelled.');
+      process.exit(1);
+    }
+    preset = answer;
   }
 
   let database = options.database;
@@ -121,7 +149,15 @@ export async function runInit(
 
   const targetDir = resolve(cwd, projectName);
   try {
-    scaffoldProject({ targetDir, projectName, cliVersion, database, di, packageManager });
+    scaffoldProject({
+      targetDir,
+      projectName,
+      cliVersion,
+      database,
+      di,
+      preset,
+      packageManager,
+    });
   } catch (err) {
     clack.log.error(err instanceof Error ? err.message : String(err));
     clack.outro('Failed.');
@@ -129,6 +165,6 @@ export async function runInit(
   }
 
   clack.log.success(`Scaffolded "${projectName}" in ${targetDir}.`);
-  clack.note(nextSteps(projectName, packageManager, database), 'Next steps');
+  clack.note(nextSteps(projectName, packageManager, database, preset), 'Next steps');
   clack.outro('Done.');
 }

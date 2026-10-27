@@ -1,0 +1,15 @@
+import { Type, type Static } from '@sinclair/typebox';
+
+export const healthResponseSchema = Type.Object({
+  status: Type.Literal('ok'),
+  uptime: Type.Number(),
+});
+
+export type HealthResponse = Static<typeof healthResponseSchema>;
+
+export const readinessResponseSchema = Type.Object({
+  status: Type.Union([Type.Literal('ready'), Type.Literal('unavailable')]),
+  checks: Type.Record(Type.String(), Type.Union([Type.Literal('up'), Type.Literal('down')])),
+});
+
+export type ReadinessResponse = Static<typeof readinessResponseSchema>;

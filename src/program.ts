@@ -12,7 +12,9 @@ import {
   DATABASE_STRATEGIES,
   DI_SCOPES,
   DI_STRATEGIES,
+  PRESETS,
   type DiScope,
+  type Preset,
   type DatabaseStrategy,
   type DiStrategy,
 } from './manifest.js';
@@ -62,12 +64,13 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
     .description('scaffold a new project')
     .argument('[name]', 'project name')
     .option('--pm <manager>', `package manager (${PACKAGE_MANAGERS.join(', ')})`)
+    .option('--preset <preset>', `starting point (${PRESETS.join(', ')})`)
     .option('--database <strategy>', `database (${DATABASE_STRATEGIES.join(', ')})`)
     .option('--di <strategy>', `dependency management (${DI_STRATEGIES.join(', ')})`)
     .action(
       async (
         name: string | undefined,
-        options: { pm?: string; database?: string; di?: string },
+        options: { pm?: string; preset?: string; database?: string; di?: string },
       ) => {
         if (
           options.pm &&
@@ -76,6 +79,9 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
           program.error(
             `error: option '--pm <manager>' must be one of: ${PACKAGE_MANAGERS.join(', ')}`,
           );
+        }
+        if (options.preset && !PRESETS.includes(options.preset as Preset)) {
+          program.error(`error: option '--preset <preset>' must be one of: ${PRESETS.join(', ')}`);
         }
         if (
           options.database &&
@@ -94,6 +100,7 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
           name,
           {
             pm: options.pm as (typeof PACKAGE_MANAGERS)[number] | undefined,
+            preset: options.preset as Preset | undefined,
             database: options.database as DatabaseStrategy | undefined,
             di: options.di as DiStrategy | undefined,
           },
