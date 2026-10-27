@@ -1,8 +1,21 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ModuleCollisionError, NotScaffoldedError, generateModule } from './generate-module.js';
+import {
+  InvalidModuleNameError,
+  ModuleCollisionError,
+  NotScaffoldedError,
+  generateModule,
+} from './generate-module.js';
 import { LegacyManifestError } from './manifest.js';
 import { MarkerNotFoundError } from './register-module.js';
 
@@ -112,6 +125,21 @@ describe('generateModule', () => {
     expect(moduleTs).toContain("fastify.decorate('userProfilesService'");
   });
 
+  it.each(['../x', 'Foo Bar', 'userProfiles', 'a/b', ''])(
+    'refuses the invalid module name "%s" without writing anything',
+    (moduleName) => {
+      workDir = makeScaffoldedProject();
+      const manifestBefore = readFileSync(join(workDir, '.fastify-ep.json'), 'utf8');
+
+      expect(() => generateModule({ targetDir: workDir, moduleName })).toThrow(
+        InvalidModuleNameError,
+      );
+
+      expect(existsSync(join(workDir, 'src/modules'))).toBe(false);
+      expect(readFileSync(join(workDir, '.fastify-ep.json'), 'utf8')).toBe(manifestBefore);
+    },
+  );
+
   it('refuses when the target is not a scaffolded project', () => {
     workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-project-'));
 
@@ -154,6 +182,25 @@ describe('generateModule', () => {
     const manifest = JSON.parse(readFileSync(join(workDir, '.fastify-ep.json'), 'utf8'));
     expect(manifest.modules).toEqual(['health']);
   });
+
+  // root ignores file permissions, so the manifest write could not be made to fail
+  it.skipIf(process.getuid?.() === 0)(
+    'restores app.ts and removes the module directory when the manifest cannot be written',
+    () => {
+      workDir = makeScaffoldedProject();
+      const appTsPath = join(workDir, 'src/app.ts');
+      const manifestPath = join(workDir, '.fastify-ep.json');
+      const appTsBefore = readFileSync(appTsPath, 'utf8');
+      const manifestBefore = readFileSync(manifestPath, 'utf8');
+      chmodSync(manifestPath, 0o444);
+
+      expect(() => generateModule({ targetDir: workDir, moduleName: 'orders' })).toThrow(/EACCES/);
+
+      expect(existsSync(join(workDir, 'src/modules/orders'))).toBe(false);
+      expect(readFileSync(appTsPath, 'utf8')).toBe(appTsBefore);
+      expect(readFileSync(manifestPath, 'utf8')).toBe(manifestBefore);
+    },
+  );
 
   it('refuses to operate on a legacy (v1) manifest with an explanatory error', () => {
     workDir = makeLegacyScaffoldedProject();

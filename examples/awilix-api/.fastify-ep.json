@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "fastifyEpVersion": "0.4.0",
+  "fastifyEpVersion": "0.5.0",
   "architecture": {
     "schema": "typebox",
     "di": "awilix",
@@ -8,6 +8,7 @@
   },
   "modules": [
     "health",
-    "orders"
+    "orders",
+    "users"
   ]
 }

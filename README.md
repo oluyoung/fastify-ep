@@ -22,7 +22,13 @@ Add a new domain module at any point:
 fastify-ep generate module orders
 ```
 
-That's it — the new module is generated and wired into the app for you.
+That's it — the new module is generated and wired into the app for you. `g` is
+shorthand for `generate`, and `generate resource` goes further than `module` by adding a
+repository (and, with `--crud`, a full set of routes):
+
+```sh
+fastify-ep g resource users --crud
+```
 
 ## What you get
 
@@ -53,11 +59,45 @@ The module is auto-registered in `src/app.ts` at the `// fastify-ep:register`
 marker — no manual wiring required. If that marker is ever removed, the CLI
 tells you exactly what line to add by hand.
 
+## Resource anatomy
+
+`generate resource <name>` is a module plus a repository. It produces six files under
+`src/modules/<name>/` (the same five as a module, plus `<name>.repository.ts`) and is registered
+in `src/app.ts` the same way. Use `generate module` for a lightweight skeleton and
+`generate resource` when the module owns data.
+
+Without `--crud`, the repository is a minimal in-memory one and `GET /<name>` is a status
+endpoint. With `--crud` you get:
+
+```
+POST   /<name>
+GET    /<name>
+GET    /<name>/:id
+PATCH  /<name>/:id
+DELETE /<name>/:id
+```
+
+backed by the project's database strategy:
+
+| `--database` | Repository | Also generated |
+|---|---|---|
+| `none` | in-memory `Map` | |
+| `drizzle` | Drizzle queries on `fastify.db` | `<name>.table.ts`, exported from `src/infrastructure/database/schema.ts` |
+| `prisma` | Prisma client calls on `fastify.db` | a `model` block appended to `prisma/schema.prisma` |
+
+Entities start with `id` and `name` fields; edit the schema, repository and table or model to
+fit your data. For a database project, run `npm run db:generate` and then `npm run db:migrate`
+after generating. The entity name is the resource name with a trailing plural `s` removed
+(`users` becomes `User`); pass `--singular person` for irregular plurals. Resource and module
+names must be lowercase kebab-case (`user-profiles`).
+
 ## Commands
 
 ```
 fastify-ep init [name] [--pm npm|pnpm|yarn] [--database none|drizzle|prisma] [--di native|awilix]
 fastify-ep generate module <name> [--no-test] [--scope singleton|request]
+fastify-ep generate resource <name> [--crud] [--no-test] [--scope singleton|request] [--singular <name>]
+fastify-ep g <module|resource> ...      # g is an alias for generate
 ```
 
 - `init` — scaffold a new project. Prompts interactively for anything not
@@ -70,6 +110,12 @@ fastify-ep generate module <name> [--no-test] [--scope singleton|request]
   `fastify-ep` project. Pass `--no-test` to skip the generated test file. In an Awilix
   project, `--scope request` registers the module's service per request instead of as a
   singleton (default).
+- `generate resource <name>` — add a module with a repository to an existing project.
+  `--crud` adds create/read/update/delete routes backed by the project's database and, for
+  Drizzle and Prisma, edits the schema file (see [Resource anatomy](#resource-anatomy)).
+  `--singular <name>` sets the entity name; `--no-test` and `--scope` behave as for `module`.
+  Generation stops without writing anything if the name is invalid or already used, or if the
+  schema file already defines that table or model, and it restores everything if a step fails.
 
 ## Why no DI runtime by default?
 

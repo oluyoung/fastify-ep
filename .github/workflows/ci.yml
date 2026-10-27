@@ -129,6 +129,16 @@ jobs:
         working-directory: ${{ runner.temp }}/harness/demo-app
         run: fastify-ep generate module orders
 
+      - name: fastify-ep g resource (CRUD)
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: fastify-ep g resource users --crud
+
+      # The Prisma client is generated at install, before the resource added its model.
+      - name: Regenerate the Prisma client
+        if: matrix.database == 'prisma'
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: npx prisma generate
+
       - name: Doctor (after generate)
         working-directory: ${{ runner.temp }}/harness/demo-app
         run: fastify-ep doctor
@@ -145,9 +155,14 @@ jobs:
         working-directory: ${{ runner.temp }}/harness/demo-app
         run: ${{ matrix.pm }} run build
 
-      - name: Smoke test (probes, graceful shutdown, unreachable database)
+      - name: Apply the schema to Postgres
+        if: matrix.database != 'none'
         working-directory: ${{ runner.temp }}/harness/demo-app
-        run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.database }}
+        run: ${{ matrix.database == 'drizzle' && 'npx drizzle-kit push --force' || 'npx prisma db push' }}
+
+      - name: Smoke test (probes, CRUD routes, graceful shutdown, unreachable database)
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.database }} users
 
   examples:
     runs-on: ubuntu-latest
@@ -209,9 +224,13 @@ jobs:
         working-directory: examples/${{ matrix.example }}
         run: npm run build
 
+      - name: Apply the schema to Postgres
+        working-directory: examples/${{ matrix.example }}
+        run: ${{ matrix.example == 'prisma-api' && 'npx prisma db push' || 'npx drizzle-kit push --force' }}
+
       - name: Smoke test
         working-directory: examples/${{ matrix.example }}
-        run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.example == 'prisma-api' && 'prisma' || 'drizzle' }}
+        run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.example == 'prisma-api' && 'prisma' || 'drizzle' }} users
 
   publish:
     needs: [lint-and-build, integration, examples]

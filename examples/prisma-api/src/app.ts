@@ -26,6 +26,7 @@ export async function buildApp() {
 
   await fastify.register((await import('./modules/health/health.module.js')).default);
   await fastify.register((await import('./modules/orders/orders.module.js')).default);
+  await fastify.register((await import('./modules/users/users.module.js')).default);
   // fastify-ep:register
 
   return fastify;

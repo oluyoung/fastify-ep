@@ -31,5 +31,7 @@ for (const { name, database, di } of EXAMPLES) {
   rmSync(dir, { recursive: true, force: true });
   run(['init', name, '--pm', 'npm', '--database', database, '--di', di], examplesDir);
   run(['generate', 'module', 'orders'], dir);
+  // The `g` alias, so CI exercises it too.
+  run(['g', 'resource', 'users', '--crud'], dir);
 }
 console.log(`\nGenerated ${EXAMPLES.map((e) => e.name).join(', ')} in examples/`);

@@ -4,7 +4,37 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
-## [Unreleased]
+## [0.5.0] — Generation Expansion
+
+### Added
+
+- `fastify-ep g` as shorthand for `fastify-ep generate`.
+- `generate resource <name>`: a module plus a repository (`<name>.repository.ts`), with
+  `--no-test`, `--scope` and `--singular <name>` (entity name when it is not the resource name
+  minus a trailing `s`).
+- `generate resource <name> --crud`: `POST /<name>`, `GET /<name>`, `GET /<name>/:id`,
+  `PATCH /<name>/:id` and `DELETE /<name>/:id`, backed by the project's database. `none` uses an
+  in-memory repository; Drizzle and Prisma use the ORM. For those, the generator also adds the
+  table (exported from `src/infrastructure/database/schema.ts`) or appends a model to
+  `prisma/schema.prisma`, and prints the migration commands to run. Works with native and Awilix
+  projects.
+- Name validation for `generate module` and `generate resource`: lowercase kebab-case, at most 64
+  characters.
+- `examples/*` each include a `users` resource generated with `g resource users --crud`, and
+  `scripts/smoke.sh` takes an optional resource name to exercise its CRUD routes in CI.
+
+### Changed
+
+- `generate module` rejects names that are not lowercase kebab-case instead of writing them
+  (previously `generate module ../x` was accepted).
+- Generation now restores `app.ts` as well as removing the new directory when a later step
+  fails.
+
+### Not included
+
+- `generate service|schema|repository` (ROADMAP 15.4) are deferred.
+
+## [0.4.0] — Dependency Management
 
 ### Added
 
