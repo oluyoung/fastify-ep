@@ -3,6 +3,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
+import { AppError } from '../../errors/app-error.js';
 
 export default fp(async (fastify: FastifyInstance) => {
   await fastify.register(helmet);
@@ -22,5 +23,12 @@ export default fp(async (fastify: FastifyInstance) => {
     timeWindow: '1 minute',
     // Orchestrator probes must never be throttled.
     allowList: (request) => request.url.startsWith('/health'),
+    // Throw an AppError so the project's error handler answers with its usual error shape.
+    errorResponseBuilder: (_request, context) =>
+      new AppError(
+        'RATE_LIMITED',
+        `Too many requests, retry in ${context.after}`,
+        context.statusCode,
+      ),
   });
 });

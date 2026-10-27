@@ -82,6 +82,10 @@ if [ "$preset" = "production" ]; then
     limited=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3997/documentation/json)
   done
   [ "$limited" = "429" ] || fail "rate limit must return 429 once exceeded (got $limited)" production.log
+  # A module route is answered by the project's own error handler, so it shows the error shape.
+  limited_body=$(curl -s http://127.0.0.1:3997/orders)
+  echo "$limited_body" | grep -q '"code":"RATE_LIMITED"' || fail "429 must use the project error code (got $limited_body)" production.log
+  echo "$limited_body" | grep -q '"requestId"'           || fail "429 must include a requestId (got $limited_body)" production.log
   for _ in 1 2 3 4 5 6; do
     [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3997/health/live)" = "200" ] || fail "health probes must never be rate limited" production.log
   done

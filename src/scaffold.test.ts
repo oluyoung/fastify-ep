@@ -465,6 +465,7 @@ describe('scaffoldProject presets', () => {
       const env = read(dir, 'src/config/env.ts');
       expect(env).toContain("CORS_ORIGIN: { type: 'string', default: '' },");
       expect(env).toContain('RATE_LIMIT_MAX: number;');
+      expect(read(dir, 'src/infrastructure/http/security.plugin.ts')).toContain("'RATE_LIMITED'");
       expect(manifestOf(dir).architecture.preset).toBe('production');
     },
   );

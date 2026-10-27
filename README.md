@@ -118,6 +118,7 @@ fastify-ep g <module|resource> ...      # g is an alias for generate
   passed as an argument/flag. `--preset` chooses how much infrastructure to start with (see
   Presets above). `--database drizzle` or `prisma` adds a typed
   `fastify.db` on PostgreSQL (guide: `docs/database.md` at the workspace root).
+  <!-- TODO: docs/ is not published. Point this link at the live docs site once it exists (see TODOS.md). -->
   `--di awilix` adds an [Awilix](https://github.com/jeffijoe/awilix) container via
   `@fastify/awilix`; the default, `native`, stays plain Fastify decorators and is
   the recommended choice.

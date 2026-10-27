@@ -1,6 +1,6 @@
 {
   "name": "production-api",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -33,6 +33,6 @@
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
-    "vitest": "^2.0.5"
+    "vitest": "^4.1.0"
   }
 }

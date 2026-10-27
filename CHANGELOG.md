@@ -4,6 +4,19 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
+## [0.6.1] — Fixes
+
+### Fixed
+
+- Production: a rate-limited request now returns 429 with the project's error shape
+  (`{ error: { code: 'RATE_LIMITED', message, requestId } }`). Before, routes handled by the
+  project's error handler answered 500.
+
+### Changed
+
+- Generated projects use `vitest ^4.1.0` (was `^2.0.5`), which clears the dev-only `npm audit`
+  advisories in the test tooling. Generated projects start at version `0.1.0` (was `0.2.0`).
+
 ## [0.6.0] — Production Presets
 
 ### Added

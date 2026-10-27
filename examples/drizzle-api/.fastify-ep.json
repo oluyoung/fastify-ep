@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "fastifyEpVersion": "0.6.0",
+  "fastifyEpVersion": "0.6.1",
   "architecture": {
     "schema": "typebox",
     "di": "native",
