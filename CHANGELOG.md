@@ -4,44 +4,44 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
-## [Unreleased]
+## [0.7.0] — Workspace Support
+
+Projects can live inside a pnpm, npm or Yarn workspace. Outside a workspace nothing changes: the
+output of `init` and every generator is identical to 0.6.1.
 
 ### Added
 
 - `init` accepts a directory path (`init apps/payments-api`). The package is named after the last
   path segment, or after the new `--name <package-name>` option, which may be scoped
   (`@acme/payments-api`). The target must still be inside the current directory and empty.
-
-- `init` inside a pnpm, npm or Yarn workspace uses the workspace's package manager and skips the
-  package-manager prompt. A conflicting `--pm` is an error that names the workspace's manager.
-  Detection reads `pnpm-workspace.yaml` (with `packages:`) or a root `package.json` `workspaces`
-  field, and mentions Turborepo and Nx when `turbo.json` or `nx.json` is present.
-
+- `init` inside a workspace uses the workspace's package manager and skips the package-manager
+  prompt. A conflicting `--pm` is an error that names the workspace's manager. Detection reads
+  `pnpm-workspace.yaml` (with `packages:`) or a root `package.json` `workspaces` field, and mentions
+  Turborepo and Nx when `turbo.json` or `nx.json` is present.
 - `init` writes only inside the new directory. In a pnpm workspace it no longer writes a nested
   `pnpm-workspace.yaml`; it prints the `allowBuilds` entries to merge into the root file instead.
   When the new directory is not matched by the workspace's package globs, it prints the glob to add
   (to `pnpm-workspace.yaml` `packages:`, or to `workspaces` in the root `package.json`).
-
+- Next steps inside a workspace: one install at the root and the workspace dev command
+  (`pnpm --filter <name> dev`, `npm run dev -w <name>`, `yarn workspace <name> dev`).
 - Production inside a workspace generates a workspace Dockerfile (`Dockerfile` and
   `Dockerfile.dockerignore` in the service) for npm, pnpm and Yarn Berry. The build context is the
   workspace root: `docker build -f apps/payments-api/Dockerfile -t payments-api .`. Local libraries
   are built before the service. Yarn classic, or Yarn Berry without `nodeLinker: node-modules`,
   gets no Dockerfile and a note saying why.
-- Next steps inside a workspace: one install at the root and the workspace dev command
-  (`pnpm --filter <name> dev`, `npm run dev -w <name>`, `yarn workspace <name> dev`).
-
 - `generate module`, `generate resource` and `doctor` work from anywhere inside a service in a
   workspace: they walk up from the current directory to the nearest `.fastify-ep.json`, stopping at
   the workspace root. From the workspace root the error lists the services found and suggests
   `--project`. The new `-C, --project <dir>` option runs a command against a given project.
   Outside a workspace the current directory is used as before.
-
 - `generate library <name>`: inside a workspace, adds a shared library package (`package.json`
   with `exports` and `files` pointing at `dist`, `tsconfig.json`, an example TypeBox schema, a
   Vitest test and a `.fastify-ep-library.json` marker). It goes under the workspace's
   `packages/*` or `libs/*` glob, else `packages/<name>` (`--dir` overrides), is scoped like the
   workspace's other packages (`--name` overrides), and prints the dependency line to add to a
   service. It writes only the new directory and fails outside a workspace.
+- CI builds a workspace with two services and a library for npm, pnpm and Yarn Berry, then builds
+  and runs the Production image (`scripts/workspace-smoke.sh`).
 
 ### Changed
 

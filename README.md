@@ -142,6 +142,33 @@ fastify-ep g <module|resource|library> ...      # g is an alias for generate
   directory and prints the dependency line to add to a service. Services import a library
   through its `dist`, so build it first.
 
+## Workspaces and monorepos
+
+`fastify-ep` works inside pnpm, npm and Yarn workspaces. It writes only inside the directory it
+creates; anything that belongs in the workspace's own files is printed for you to apply.
+
+```sh
+fastify-ep init apps/users-api --name @acme/users-api   # inherits the workspace's package manager
+fastify-ep generate library contracts                   # packages/contracts, as @acme/contracts
+pnpm install                                            # once, at the workspace root
+```
+
+- **Package manager.** Inside a workspace `init` uses the workspace's manager and skips the prompt;
+  a conflicting `--pm` is an error. Turborepo and Nx are recognised and mentioned, never edited.
+- **What you may need to add.** If the new directory is not matched by the workspace's package
+  globs, `init` prints the glob to add. In a pnpm workspace it does not write a
+  `pnpm-workspace.yaml`; it prints the `allowBuilds` entries to merge into the root one.
+- **Several services.** Each service keeps its own `.fastify-ep.json`. `generate` and `doctor`
+  find the service you are in from any subfolder, and `-C <dir>` (`--project`) picks one from the
+  workspace root.
+- **Libraries.** `generate library <name>` adds a plain package (a TypeBox schema, a test, built
+  to `dist`) under `packages/*` or `libs/*`. Add the printed dependency line to a service, and
+  build the library first: services import it through its `dist`.
+- **Docker.** With the Production preset, a service in a workspace gets a Dockerfile built from
+  the workspace root: `docker build -f apps/users-api/Dockerfile -t users-api .`. It builds the
+  libraries a service depends on. Yarn needs Berry (2+) with `nodeLinker: node-modules`;
+  otherwise no Dockerfile is generated and `init` says why.
+
 ## Why no DI runtime by default?
 
 Native Fastify already gives you encapsulation (via `fastify-plugin`) and
