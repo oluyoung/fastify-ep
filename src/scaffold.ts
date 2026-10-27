@@ -2,10 +2,12 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  DEFAULT_PRESET,
   Manifest,
   MANIFEST_SCHEMA_VERSION,
   type DatabaseStrategy,
   type DiStrategy,
+  type Preset,
 } from './manifest.js';
 import type { PackageManager } from './package-manager.js';
 import { insertInfrastructureRegistration, insertModuleRegistration } from './register-module.js';
@@ -16,6 +18,9 @@ const OVERLAYS_DIR = fileURLToPath(new URL('../template-overlays', import.meta.u
 
 /** Where each database overlay's plugin lives, relative to `src/` and without extension. */
 export const DATABASE_PLUGIN_PATH = 'infrastructure/database/database.plugin';
+
+/** Where the Production preset's security plugin lives, relative to `src/` and without extension. */
+export const SECURITY_PLUGIN_PATH = 'infrastructure/http/security.plugin';
 
 /** Where the Awilix container plugin lives, relative to `src/` and without extension. */
 export const DI_PLUGIN_PATH = 'infrastructure/di/container.plugin';
@@ -41,7 +46,9 @@ export interface ScaffoldOptions {
   database?: DatabaseStrategy;
   /** Defaults to `native`. */
   di?: DiStrategy;
-  /** Package manager the project will use; pnpm gets a `pnpm-workspace.yaml`. */
+  /** Defaults to `standard`, which is the base templates plus Swagger. */
+  preset?: Preset;
+  /** Package manager the project will use; pnpm gets a `pnpm-workspace.yaml`, Production a matching Dockerfile. Defaults to npm for the Dockerfile. */
   packageManager?: PackageManager;
   /** Override for tests; defaults to this package's real `templates/` dir. */
   templatesDir?: string;
@@ -115,6 +122,27 @@ function copyTemplateDir(
   }
 }
 
+/** Env keys the Production preset adds, inserted after `SHUTDOWN_TIMEOUT_MS` in whichever `env.ts` the database overlay left. */
+function addProductionEnv(targetDir: string): void {
+  const envPath = join(targetDir, 'src', 'config', 'env.ts');
+  replaceInFile(
+    envPath,
+    "    SHUTDOWN_TIMEOUT_MS: { type: 'number', default: 10000 },\n",
+    "    SHUTDOWN_TIMEOUT_MS: { type: 'number', default: 10000 },\n    CORS_ORIGIN: { type: 'string', default: '' },\n    RATE_LIMIT_MAX: { type: 'number', default: 100 },\n",
+  );
+  replaceInFile(
+    envPath,
+    '      SHUTDOWN_TIMEOUT_MS: number;\n',
+    '      SHUTDOWN_TIMEOUT_MS: number;\n      CORS_ORIGIN: string;\n      RATE_LIMIT_MAX: number;\n',
+  );
+}
+
+/** Overlay directories for a preset, in the order they are applied (each includes the previous). */
+function presetOverlayNames(preset: Preset): string[] {
+  if (preset === 'minimal') return [];
+  return preset === 'production' ? ['standard', 'production'] : ['standard'];
+}
+
 function pnpmWorkspaceYaml(database: DatabaseStrategy): string {
   const lines = Object.entries(PNPM_ALLOWED_BUILDS[database]).map(
     ([name, allowed]) => `  ${/^[\w-]+$/.test(name) ? name : `'${name}'`}: ${allowed}`,
@@ -171,16 +199,25 @@ export function scaffoldProject({
   cliVersion,
   database = 'none',
   di = 'native',
+  preset = DEFAULT_PRESET,
   packageManager,
   templatesDir = TEMPLATES_DIR,
   overlaysDir = OVERLAYS_DIR,
 }: ScaffoldOptions): void {
   const alreadyExisted = existsSync(targetDir);
+  const presetDirs = presetOverlayNames(preset).map((name) => join(overlaysDir, 'preset', name));
+  const dockerDir =
+    preset === 'production' ? join(overlaysDir, 'docker', packageManager ?? 'npm') : undefined;
   const overlayDir = database === 'none' ? undefined : join(overlaysDir, database);
   const diOverlayDir = di === 'native' ? undefined : join(overlaysDir, 'di', di);
   const writtenTopLevel = new Set<string>(['.fastify-ep.json', 'pnpm-workspace.yaml']);
 
   try {
+    for (const dir of [...presetDirs, ...(dockerDir ? [dockerDir] : [])]) {
+      if (!existsSync(dir))
+        throw new Error(`no template overlay for preset "${preset}" at "${dir}".`);
+    }
+
     if (overlayDir !== undefined && !existsSync(overlayDir)) {
       throw new Error(`no template overlay for database "${database}" at "${overlayDir}".`);
     }
@@ -191,6 +228,11 @@ export function scaffoldProject({
 
     readdirSync(templatesDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
     copyTemplateDir(templatesDir, targetDir, projectName);
+
+    for (const dir of [...presetDirs, ...(dockerDir ? [dockerDir] : [])]) {
+      readdirSync(dir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
+      copyTemplateDir(dir, targetDir, projectName);
+    }
 
     if (overlayDir !== undefined) {
       readdirSync(overlayDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
@@ -205,7 +247,12 @@ export function scaffoldProject({
       }
     }
 
+    if (preset === 'production') addProductionEnv(targetDir);
+
     const appTsPath = join(targetDir, 'src', 'app.ts');
+    if (preset === 'production') {
+      insertInfrastructureRegistration(appTsPath, SECURITY_PLUGIN_PATH);
+    }
     if (database !== 'none') {
       insertInfrastructureRegistration(appTsPath, DATABASE_PLUGIN_PATH);
     }
@@ -222,7 +269,12 @@ export function scaffoldProject({
     const manifest: Manifest = {
       schemaVersion: MANIFEST_SCHEMA_VERSION,
       fastifyEpVersion: cliVersion,
-      architecture: { schema: 'typebox', di, database },
+      architecture: {
+        schema: 'typebox',
+        di,
+        database,
+        ...(preset === DEFAULT_PRESET ? {} : { preset }),
+      },
       modules: ['health'],
     };
     writeFileSync(join(targetDir, '.fastify-ep.json'), `${JSON.stringify(manifest, null, 2)}\n`);

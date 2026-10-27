@@ -37,11 +37,25 @@ fastify-ep g resource users --crud
 - [Fastify 5](https://fastify.dev/)
 - [`@fastify/swagger`](https://github.com/fastify/fastify-swagger) +
   [`@fastify/swagger-ui`](https://github.com/fastify/fastify-swagger-ui),
-  served at `/documentation`
+  served at `/documentation` (everything except the Minimal preset)
 - [`@fastify/env`](https://github.com/fastify/fastify-env) for validated
   environment config
 - [TypeBox](https://github.com/sinclairzx81/typebox) schemas
 - TypeScript + [Vitest](https://vitest.dev/), already wired up
+
+### Presets
+
+`--preset` picks a starting point. It generates plain source you then own; nothing ties the
+project to `fastify-ep`.
+
+| Preset               | Adds                                                                                                                                                                                                                                                                               |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `minimal`            | Fastify, TypeBox, env validation, the error handler, health probes, graceful shutdown, tests. No OpenAPI.                                                                                                                                                                          |
+| `standard` (default) | Minimal plus Swagger / OpenAPI at `/documentation`.                                                                                                                                                                                                                                |
+| `production`         | Standard plus security headers (`@fastify/helmet`), CORS (`@fastify/cors`, closed until `CORS_ORIGIN` is set), rate limiting (`@fastify/rate-limit`, `RATE_LIMIT_MAX` per minute, health probes exempt), and a `Dockerfile` and `.dockerignore` for the package manager you chose. |
+
+The Dockerfile expects the lockfile from your first install, so run `<pm> install` before
+`docker build`.
 
 ## Module anatomy
 
@@ -79,11 +93,11 @@ DELETE /<name>/:id
 
 backed by the project's database strategy:
 
-| `--database` | Repository | Also generated |
-|---|---|---|
-| `none` | in-memory `Map` | |
-| `drizzle` | Drizzle queries on `fastify.db` | `<name>.table.ts`, exported from `src/infrastructure/database/schema.ts` |
-| `prisma` | Prisma client calls on `fastify.db` | a `model` block appended to `prisma/schema.prisma` |
+| `--database` | Repository                          | Also generated                                                           |
+| ------------ | ----------------------------------- | ------------------------------------------------------------------------ |
+| `none`       | in-memory `Map`                     |                                                                          |
+| `drizzle`    | Drizzle queries on `fastify.db`     | `<name>.table.ts`, exported from `src/infrastructure/database/schema.ts` |
+| `prisma`     | Prisma client calls on `fastify.db` | a `model` block appended to `prisma/schema.prisma`                       |
 
 Entities start with `id` and `name` fields; edit the schema, repository and table or model to
 fit your data. For a database project, run `npm run db:generate` and then `npm run db:migrate`
@@ -94,14 +108,15 @@ names must be lowercase kebab-case (`user-profiles`).
 ## Commands
 
 ```
-fastify-ep init [name] [--pm npm|pnpm|yarn] [--database none|drizzle|prisma] [--di native|awilix]
+fastify-ep init [name] [--pm npm|pnpm|yarn] [--preset minimal|standard|production] [--database none|drizzle|prisma] [--di native|awilix]
 fastify-ep generate module <name> [--no-test] [--scope singleton|request]
 fastify-ep generate resource <name> [--crud] [--no-test] [--scope singleton|request] [--singular <name>]
 fastify-ep g <module|resource> ...      # g is an alias for generate
 ```
 
 - `init` — scaffold a new project. Prompts interactively for anything not
-  passed as an argument/flag. `--database drizzle` or `prisma` adds a typed
+  passed as an argument/flag. `--preset` chooses how much infrastructure to start with (see
+  Presets above). `--database drizzle` or `prisma` adds a typed
   `fastify.db` on PostgreSQL (guide: `docs/database.md` at the workspace root).
   `--di awilix` adds an [Awilix](https://github.com/jeffijoe/awilix) container via
   `@fastify/awilix`; the default, `native`, stays plain Fastify decorators and is

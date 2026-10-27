@@ -108,3 +108,34 @@ describe('readManifest', () => {
     expect(() => readManifest(manifestPath)).toThrow(InvalidManifestError);
   });
 });
+
+describe('readManifest preset', () => {
+  const base = {
+    schemaVersion: 2,
+    fastifyEpVersion: '0.6.0',
+    modules: ['health'],
+  };
+
+  function read(architecture: Record<string, unknown>) {
+    const dir = mkdtempSync(join(tmpdir(), 'fastify-ep-manifest-'));
+    const path = join(dir, '.fastify-ep.json');
+    writeFileSync(path, JSON.stringify({ ...base, architecture }));
+    try {
+      return readManifest(path);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('accepts a manifest without a preset (v0.5 and Standard)', () => {
+    expect(read({ schema: 'typebox', di: 'native', database: 'none' }).architecture.preset).toBe(
+      undefined,
+    );
+  });
+
+  it('accepts a known preset and rejects an unknown one', () => {
+    const architecture = { schema: 'typebox', di: 'native', database: 'none' };
+    expect(read({ ...architecture, preset: 'production' }).architecture.preset).toBe('production');
+    expect(() => read({ ...architecture, preset: 'enterprise' })).toThrow(InvalidManifestError);
+  });
+});

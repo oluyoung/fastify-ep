@@ -5,6 +5,12 @@ export const MANIFEST_SCHEMA_VERSION = 2;
 export const DATABASE_STRATEGIES = ['none', 'drizzle', 'prisma'] as const;
 export type DatabaseStrategy = (typeof DATABASE_STRATEGIES)[number];
 
+export const PRESETS = ['minimal', 'standard', 'production'] as const;
+export type Preset = (typeof PRESETS)[number];
+
+/** The preset `init` uses when none is chosen. Its manifest omits the `preset` key. */
+export const DEFAULT_PRESET: Preset = 'standard';
+
 export const DI_STRATEGIES = ['native', 'awilix'] as const;
 export type DiStrategy = (typeof DI_STRATEGIES)[number];
 
@@ -16,6 +22,8 @@ export interface ManifestArchitecture {
   schema: 'typebox';
   di: DiStrategy;
   database: DatabaseStrategy;
+  /** Absent means `standard`. Informational: presets generate plain source the user then owns. */
+  preset?: Preset;
 }
 
 export interface Manifest {
@@ -52,10 +60,11 @@ function isLegacyManifest(value: Record<string, unknown>): boolean {
 
 function isArchitecture(value: unknown): boolean {
   if (typeof value !== 'object' || value === null) return false;
-  const { database, di } = value as Record<string, unknown>;
+  const { database, di, preset } = value as Record<string, unknown>;
   return (
     DATABASE_STRATEGIES.includes(database as DatabaseStrategy) &&
-    DI_STRATEGIES.includes(di as DiStrategy)
+    DI_STRATEGIES.includes(di as DiStrategy) &&
+    (preset === undefined || PRESETS.includes(preset as Preset))
   );
 }
 
