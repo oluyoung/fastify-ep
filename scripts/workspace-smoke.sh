@@ -23,6 +23,9 @@ pmx() {
   if [ "$pm" = yarn ]; then corepack yarn "$@"; else "$pm" "$@"; fi
 }
 
+# Berry turns on immutable installs when CI is set, which forbids creating the first lockfile.
+export YARN_ENABLE_IMMUTABLE_INSTALLS=false
+
 # Runs package script $2 in the workspace package named $1.
 in_package() {
   case "$pm" in
