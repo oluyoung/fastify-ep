@@ -5,9 +5,14 @@ import {
   LegacyManifestError,
   readManifest,
   type DatabaseStrategy,
+  type DiStrategy,
 } from './manifest.js';
-import { DATABASE_PLUGIN_PATH } from './scaffold.js';
-import { isInfrastructureRegistered, isModuleRegistered } from './register-module.js';
+import { DATABASE_PLUGIN_PATH, DI_PLUGIN_PATH } from './scaffold.js';
+import {
+  infrastructureRegistrationLine,
+  isInfrastructureRegistered,
+  isModuleRegistered,
+} from './register-module.js';
 
 export interface DoctorCheck {
   name: string;
@@ -26,6 +31,8 @@ const HEALTH_MODULE_FILES = [
 ];
 
 const DATABASE_PLUGIN_FILE = `src/${DATABASE_PLUGIN_PATH}.ts`;
+const DI_PLUGIN_FILE = `src/${DI_PLUGIN_PATH}.ts`;
+const AWILIX_DEPENDENCIES = ['@fastify/awilix', 'awilix'];
 
 /** ORM packages a project with the given strategy must depend on. */
 const DATABASE_DEPENDENCIES: Record<Exclude<DatabaseStrategy, 'none'>, string[]> = {
@@ -109,6 +116,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
 
   let manifestModules: string[] | undefined;
   let database: DatabaseStrategy = 'none';
+  let di: DiStrategy = 'native';
   if (!isFastifyEpProject) {
     checks.push({
       name: 'manifest schema valid',
@@ -120,6 +128,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
       const manifest = readManifest(manifestPath);
       manifestModules = manifest.modules;
       database = manifest.architecture.database;
+      di = manifest.architecture.di;
       checks.push({ name: 'manifest schema valid', pass: true });
     } catch (err) {
       const detail =
@@ -221,6 +230,55 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
   if (database !== 'none') {
     checks.push(...runDatabaseChecks(cwd, database, dependencies, appTsContent));
   }
+
+  if (di === 'awilix') {
+    checks.push(...runAwilixChecks(cwd, dependencies, appTsContent, database));
+  }
+
+  return checks;
+}
+
+function runAwilixChecks(
+  cwd: string,
+  dependencies: Record<string, string>,
+  appTsContent: string | undefined,
+  database: DatabaseStrategy,
+): DoctorCheck[] {
+  const checks: DoctorCheck[] = [];
+
+  const missingDeps = AWILIX_DEPENDENCIES.filter((name) => !dependencies[name]);
+  checks.push({
+    name: 'awilix dependencies declared',
+    pass: missingDeps.length === 0,
+    detail:
+      missingDeps.length === 0
+        ? undefined
+        : `missing from "dependencies" in package.json: ${missingDeps.join(', ')}.`,
+  });
+
+  const pluginExists = existsSync(join(cwd, DI_PLUGIN_FILE));
+  const pluginRegistered =
+    !!appTsContent && isInfrastructureRegistered(appTsContent, DI_PLUGIN_PATH);
+  // The container registers `fastify.db`, so it must come after the database plugin.
+  const orderedAfterDatabase =
+    !appTsContent ||
+    database === 'none' ||
+    appTsContent.indexOf(infrastructureRegistrationLine(DATABASE_PLUGIN_PATH)) <
+      appTsContent.indexOf(infrastructureRegistrationLine(DI_PLUGIN_PATH));
+  checks.push({
+    name: 'DI container plugin present and registered',
+    pass: pluginExists && pluginRegistered && orderedAfterDatabase,
+    detail:
+      [
+        pluginExists ? undefined : `"${DI_PLUGIN_FILE}" not found.`,
+        pluginRegistered ? undefined : 'the DI container plugin is not registered in src/app.ts.',
+        orderedAfterDatabase
+          ? undefined
+          : 'the DI container plugin must be registered after the database plugin.',
+      ]
+        .filter(Boolean)
+        .join(' ') || undefined,
+  });
 
   return checks;
 }

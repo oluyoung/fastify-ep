@@ -5,9 +5,16 @@ export const MANIFEST_SCHEMA_VERSION = 2;
 export const DATABASE_STRATEGIES = ['none', 'drizzle', 'prisma'] as const;
 export type DatabaseStrategy = (typeof DATABASE_STRATEGIES)[number];
 
+export const DI_STRATEGIES = ['native', 'awilix'] as const;
+export type DiStrategy = (typeof DI_STRATEGIES)[number];
+
+/** Service lifetime for modules generated in an Awilix project. */
+export const DI_SCOPES = ['singleton', 'request'] as const;
+export type DiScope = (typeof DI_SCOPES)[number];
+
 export interface ManifestArchitecture {
   schema: 'typebox';
-  di: 'native';
+  di: DiStrategy;
   database: DatabaseStrategy;
 }
 
@@ -45,8 +52,11 @@ function isLegacyManifest(value: Record<string, unknown>): boolean {
 
 function isArchitecture(value: unknown): boolean {
   if (typeof value !== 'object' || value === null) return false;
-  const { database } = value as Record<string, unknown>;
-  return DATABASE_STRATEGIES.includes(database as DatabaseStrategy);
+  const { database, di } = value as Record<string, unknown>;
+  return (
+    DATABASE_STRATEGIES.includes(database as DatabaseStrategy) &&
+    DI_STRATEGIES.includes(di as DiStrategy)
+  );
 }
 
 function isV2Manifest(value: Record<string, unknown>): boolean {

@@ -62,6 +62,32 @@ describe('readManifest', () => {
     expect(() => readManifest(manifestPath)).toThrow(InvalidManifestError);
   });
 
+  it('accepts DI strategy "awilix"', () => {
+    const manifestPath = writeManifest(
+      JSON.stringify({
+        schemaVersion: 2,
+        fastifyEpVersion: '0.4.0',
+        architecture: { schema: 'typebox', di: 'awilix', database: 'none' },
+        modules: ['health'],
+      }),
+    );
+
+    expect(readManifest(manifestPath).architecture.di).toBe('awilix');
+  });
+
+  it('throws InvalidManifestError for an unsupported DI strategy', () => {
+    const manifestPath = writeManifest(
+      JSON.stringify({
+        schemaVersion: 2,
+        fastifyEpVersion: '0.4.0',
+        architecture: { schema: 'typebox', di: 'inversify', database: 'none' },
+        modules: ['health'],
+      }),
+    );
+
+    expect(() => readManifest(manifestPath)).toThrow(InvalidManifestError);
+  });
+
   it('throws LegacyManifestError for a v1 manifest', () => {
     const manifestPath = writeManifest(
       JSON.stringify({ version: '0.1.0', diStrategy: 'native', modules: ['health'] }),

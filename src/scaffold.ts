@@ -1,7 +1,12 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Manifest, MANIFEST_SCHEMA_VERSION, type DatabaseStrategy } from './manifest.js';
+import {
+  Manifest,
+  MANIFEST_SCHEMA_VERSION,
+  type DatabaseStrategy,
+  type DiStrategy,
+} from './manifest.js';
 import type { PackageManager } from './package-manager.js';
 import { insertInfrastructureRegistration, insertModuleRegistration } from './register-module.js';
 import { renderTemplate } from './template-engine.js';
@@ -11,6 +16,12 @@ const OVERLAYS_DIR = fileURLToPath(new URL('../template-overlays', import.meta.u
 
 /** Where each database overlay's plugin lives, relative to `src/` and without extension. */
 export const DATABASE_PLUGIN_PATH = 'infrastructure/database/database.plugin';
+
+/** Where the Awilix container plugin lives, relative to `src/` and without extension. */
+export const DI_PLUGIN_PATH = 'infrastructure/di/container.plugin';
+
+const DI_REGISTRATIONS_MARKER = '// fastify-ep:di-registrations';
+const DI_CRADLE_MARKER = '// fastify-ep:cradle';
 
 /**
  * pnpm 11 fails `install` while any dependency build script is neither approved nor denied.
@@ -28,6 +39,8 @@ export interface ScaffoldOptions {
   cliVersion: string;
   /** Defaults to `none`. */
   database?: DatabaseStrategy;
+  /** Defaults to `native`. */
+  di?: DiStrategy;
   /** Package manager the project will use; pnpm gets a `pnpm-workspace.yaml`. */
   packageManager?: PackageManager;
   /** Override for tests; defaults to this package's real `templates/` dir. */
@@ -114,22 +127,66 @@ function pnpmWorkspaceYaml(database: DatabaseStrategy): string {
   ].join('\n');
 }
 
+function insertLineAboveMarker(filePath: string, marker: string, line: string): void {
+  const lines = readFileSync(filePath, 'utf8').split('\n');
+  const index = lines.findIndex((l) => l.trim() === marker);
+  if (index === -1) throw new Error(`could not find the "${marker}" marker in "${filePath}".`);
+  const indent = /^\s*/.exec(lines[index])?.[0] ?? '';
+  lines.splice(index, 0, `${indent}${line}`);
+  writeFileSync(filePath, lines.join('\n'));
+}
+
+function replaceInFile(filePath: string, search: string, replacement: string): void {
+  const content = readFileSync(filePath, 'utf8');
+  if (!content.includes(search)) throw new Error(`could not find "${search}" in "${filePath}".`);
+  writeFileSync(filePath, content.replace(search, replacement));
+}
+
+function prependToFile(filePath: string, text: string): void {
+  writeFileSync(filePath, text + readFileSync(filePath, 'utf8'));
+}
+
+/** Makes the database client (`fastify.db`) injectable, so services can depend on `{ db }`. */
+function registerDatabaseInContainer(targetDir: string): void {
+  const diDir = join(targetDir, 'src', 'infrastructure', 'di');
+  const pluginPath = join(diDir, 'container.plugin.ts');
+  const typesPath = join(diDir, 'di.types.ts');
+  replaceInFile(
+    pluginPath,
+    "import { fastifyAwilixPlugin } from '@fastify/awilix';",
+    "import { diContainer, fastifyAwilixPlugin } from '@fastify/awilix';\nimport { asValue } from 'awilix';",
+  );
+  prependToFile(typesPath, "import type { FastifyInstance } from 'fastify';\n\n");
+  insertLineAboveMarker(
+    pluginPath,
+    DI_REGISTRATIONS_MARKER,
+    'diContainer.register({ db: asValue(fastify.db) });',
+  );
+  insertLineAboveMarker(typesPath, DI_CRADLE_MARKER, "db: FastifyInstance['db'];");
+}
+
 export function scaffoldProject({
   targetDir,
   projectName,
   cliVersion,
   database = 'none',
+  di = 'native',
   packageManager,
   templatesDir = TEMPLATES_DIR,
   overlaysDir = OVERLAYS_DIR,
 }: ScaffoldOptions): void {
   const alreadyExisted = existsSync(targetDir);
   const overlayDir = database === 'none' ? undefined : join(overlaysDir, database);
+  const diOverlayDir = di === 'native' ? undefined : join(overlaysDir, 'di', di);
   const writtenTopLevel = new Set<string>(['.fastify-ep.json', 'pnpm-workspace.yaml']);
 
   try {
     if (overlayDir !== undefined && !existsSync(overlayDir)) {
       throw new Error(`no template overlay for database "${database}" at "${overlayDir}".`);
+    }
+
+    if (diOverlayDir !== undefined && !existsSync(diOverlayDir)) {
+      throw new Error(`no template overlay for DI strategy "${di}" at "${diOverlayDir}".`);
     }
 
     readdirSync(templatesDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
@@ -140,9 +197,21 @@ export function scaffoldProject({
       copyTemplateDir(overlayDir, targetDir, projectName);
     }
 
+    if (diOverlayDir !== undefined) {
+      readdirSync(diOverlayDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
+      copyTemplateDir(diOverlayDir, targetDir, projectName);
+      if (database !== 'none') {
+        registerDatabaseInContainer(targetDir);
+      }
+    }
+
     const appTsPath = join(targetDir, 'src', 'app.ts');
     if (database !== 'none') {
       insertInfrastructureRegistration(appTsPath, DATABASE_PLUGIN_PATH);
+    }
+    if (di === 'awilix') {
+      // After the database plugin, so `fastify.db` already exists when the container registers it.
+      insertInfrastructureRegistration(appTsPath, DI_PLUGIN_PATH);
     }
     insertModuleRegistration(appTsPath, 'health');
 
@@ -153,7 +222,7 @@ export function scaffoldProject({
     const manifest: Manifest = {
       schemaVersion: MANIFEST_SCHEMA_VERSION,
       fastifyEpVersion: cliVersion,
-      architecture: { schema: 'typebox', di: 'native', database },
+      architecture: { schema: 'typebox', di, database },
       modules: ['health'],
     };
     writeFileSync(join(targetDir, '.fastify-ep.json'), `${JSON.stringify(manifest, null, 2)}\n`);

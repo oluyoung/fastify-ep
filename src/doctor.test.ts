@@ -239,6 +239,91 @@ describe('runDoctorChecks for database projects', () => {
   });
 });
 
+function makeAwilixProject(database: 'none' | 'drizzle' = 'none'): string {
+  const dir = database === 'none' ? makeValidProject() : makeDatabaseProject(database);
+  const manifest = JSON.parse(readFileSync(join(dir, '.fastify-ep.json'), 'utf8'));
+  manifest.architecture.di = 'awilix';
+  writeFileSync(join(dir, '.fastify-ep.json'), JSON.stringify(manifest));
+
+  const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+  pkg.dependencies = { ...pkg.dependencies, '@fastify/awilix': '^8.3.2', awilix: '^13.0.5' };
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(pkg));
+
+  const diDir = join(dir, 'src', 'infrastructure', 'di');
+  mkdirSync(diDir, { recursive: true });
+  writeFileSync(join(diDir, 'container.plugin.ts'), '// plugin\n');
+  const appTs = join(dir, 'src', 'app.ts');
+  writeFileSync(
+    appTs,
+    readFileSync(appTs, 'utf8').replace(
+      "await fastify.register((await import('./modules/health",
+      "await fastify.register((await import('./infrastructure/di/container.plugin.js')).default);\n" +
+        "await fastify.register((await import('./modules/health",
+    ),
+  );
+  return dir;
+}
+
+describe('runDoctorChecks for Awilix projects', () => {
+  it.each(['none', 'drizzle'] as const)('passes every check with database %s', (database) => {
+    projectDir = makeAwilixProject(database);
+    const checks = runDoctorChecks(projectDir);
+    check('awilix dependencies declared', checks);
+    check('DI container plugin present and registered', checks);
+    for (const c of checks) {
+      expect(c.pass, `${c.name}: ${c.detail}`).toBe(true);
+    }
+  });
+
+  it('adds no Awilix checks for native projects', () => {
+    projectDir = makeValidProject();
+    expect(() => check('awilix dependencies declared', runDoctorChecks(projectDir))).toThrow();
+  });
+
+  it('fails when the Awilix packages are missing from package.json', () => {
+    projectDir = makeAwilixProject();
+    writeFileSync(
+      join(projectDir, 'package.json'),
+      JSON.stringify({ name: 'fixture', dependencies: { fastify: '^5.0.0' } }),
+    );
+    const found = check('awilix dependencies declared', runDoctorChecks(projectDir));
+    expect(found.pass).toBe(false);
+    expect(found.detail).toContain('@fastify/awilix');
+  });
+
+  it('fails when the container plugin is not registered in app.ts', () => {
+    projectDir = makeAwilixProject();
+    writeFileSync(
+      join(projectDir, 'src', 'app.ts'),
+      "await fastify.register((await import('./modules/health/health.module.js')).default);\n// fastify-ep:register\n",
+    );
+    const found = check('DI container plugin present and registered', runDoctorChecks(projectDir));
+    expect(found.pass).toBe(false);
+    expect(found.detail).toContain('not registered');
+  });
+
+  it('fails when the container plugin file is missing', () => {
+    projectDir = makeAwilixProject();
+    unlinkSync(join(projectDir, 'src', 'infrastructure', 'di', 'container.plugin.ts'));
+    const found = check('DI container plugin present and registered', runDoctorChecks(projectDir));
+    expect(found.pass).toBe(false);
+    expect(found.detail).toContain('not found');
+  });
+
+  it('fails when the container is registered before the database plugin', () => {
+    projectDir = makeAwilixProject('drizzle');
+    writeFileSync(
+      join(projectDir, 'src', 'app.ts'),
+      "await fastify.register((await import('./infrastructure/di/container.plugin.js')).default);\n" +
+        "await fastify.register((await import('./infrastructure/database/database.plugin.js')).default);\n" +
+        "await fastify.register((await import('./modules/health/health.module.js')).default);\n// fastify-ep:register\n",
+    );
+    const found = check('DI container plugin present and registered', runDoctorChecks(projectDir));
+    expect(found.pass).toBe(false);
+    expect(found.detail).toContain('after the database plugin');
+  });
+});
+
 describe('prismaSupportsNode', () => {
   it.each([
     ['v20.19.0', false],

@@ -13,7 +13,10 @@ afterEach(() => {
 });
 
 /** A minimal fake scaffolded project: an app.ts with the marker + a manifest. */
-function makeScaffoldedProject(database: 'none' | 'drizzle' | 'prisma' = 'none'): string {
+function makeScaffoldedProject(
+  database: 'none' | 'drizzle' | 'prisma' = 'none',
+  di: 'native' | 'awilix' = 'native',
+): string {
   const dir = mkdtempSync(join(tmpdir(), 'fastify-ep-project-'));
   mkdirSync(join(dir, 'src'), { recursive: true });
   writeFileSync(
@@ -32,7 +35,7 @@ function makeScaffoldedProject(database: 'none' | 'drizzle' | 'prisma' = 'none')
       {
         schemaVersion: 2,
         fastifyEpVersion: '0.1.0',
-        architecture: { schema: 'typebox', di: 'native', database },
+        architecture: { schema: 'typebox', di, database },
         modules: ['health'],
       },
       null,
@@ -175,5 +178,42 @@ describe('generateModule', () => {
     expect(readFileSync(join(workDir, 'src/modules/orders/orders.service.ts'), 'utf8')).toBe(
       '// database: drizzle\n',
     );
+  });
+});
+
+describe('generateModule in an Awilix project', () => {
+  const read = (file: string) => readFileSync(join(workDir, file), 'utf8');
+
+  it('overlays the Awilix module and controller on the shared service, schema and test', () => {
+    workDir = makeScaffoldedProject('none', 'awilix');
+
+    generateModule({ targetDir: workDir, moduleName: 'orders' });
+
+    const moduleTs = read('src/modules/orders/orders.module.ts');
+    expect(moduleTs).toContain('asClass(OrdersService, { lifetime: Lifetime.SINGLETON })');
+    expect(moduleTs).toContain("declare module '@fastify/awilix'");
+    expect(read('src/modules/orders/orders.controller.ts')).toContain(
+      "request.diScope.resolve('ordersService')",
+    );
+    expect(read('src/modules/orders/orders.service.ts')).toContain('class OrdersService');
+    expect(existsSync(join(workDir, 'src/modules/orders/orders.test.ts'))).toBe(true);
+  });
+
+  it('registers the service request-scoped with scope "request"', () => {
+    workDir = makeScaffoldedProject('none', 'awilix');
+
+    generateModule({ targetDir: workDir, moduleName: 'orders', scope: 'request' });
+
+    expect(read('src/modules/orders/orders.module.ts')).toContain('Lifetime.SCOPED');
+  });
+
+  it('keeps native projects on fastify.decorate', () => {
+    workDir = makeScaffoldedProject('none', 'native');
+
+    generateModule({ targetDir: workDir, moduleName: 'orders', scope: 'request' });
+
+    const moduleTs = read('src/modules/orders/orders.module.ts');
+    expect(moduleTs).toContain("fastify.decorate('ordersService'");
+    expect(moduleTs).not.toContain('awilix');
   });
 });
