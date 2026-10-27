@@ -4,7 +4,7 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
-## [Unreleased]
+## [0.6.0] — Production Presets
 
 ### Added
 
