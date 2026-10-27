@@ -4,7 +4,8 @@ import { createProgram } from './program.js';
 function setup() {
   const generateModule = vi.fn(async () => {});
   const generateResource = vi.fn(async () => {});
-  const program = createProgram({ generateModule, generateResource });
+  const generateLibrary = vi.fn(async () => {});
+  const program = createProgram({ generateModule, generateResource, generateLibrary });
   // Throw instead of exiting, and keep usage errors out of the test output.
   program.exitOverride();
   program.configureOutput({ writeOut: () => {}, writeErr: () => {} });
@@ -17,7 +18,7 @@ function setup() {
     }
   }
   const parse = (...args: string[]) => program.parseAsync(['node', 'fastify-ep', ...args]);
-  return { generateModule, generateResource, parse, program };
+  return { generateModule, generateResource, generateLibrary, parse, program };
 }
 
 describe('generate alias', () => {
@@ -111,5 +112,83 @@ describe('generate resource', () => {
     await expect(parse('g', 'resource')).rejects.toThrow(/missing required argument/);
 
     expect(generateResource).not.toHaveBeenCalled();
+  });
+});
+
+describe('--project', () => {
+  it.each(['--project', '-C'])('%s reaches generate module', async (flag) => {
+    const { generateModule, parse } = setup();
+
+    await parse('generate', 'module', 'orders', flag, 'apps/users-api');
+
+    expect(generateModule).toHaveBeenCalledWith(
+      'orders',
+      process.cwd(),
+      expect.objectContaining({ project: 'apps/users-api' }),
+    );
+  });
+
+  it('reaches generate resource', async () => {
+    const { generateResource, parse } = setup();
+
+    await parse('g', 'resource', 'users', '--crud', '-C', 'apps/billing-api');
+
+    expect(generateResource).toHaveBeenCalledWith(
+      'users',
+      process.cwd(),
+      expect.objectContaining({ crud: true, project: 'apps/billing-api' }),
+    );
+  });
+
+  it('is optional', async () => {
+    const { generateModule, parse } = setup();
+
+    await parse('generate', 'module', 'orders');
+
+    expect(generateModule).toHaveBeenCalledWith(
+      'orders',
+      process.cwd(),
+      expect.objectContaining({ project: undefined }),
+    );
+  });
+
+  it('doctor accepts it', () => {
+    const { program } = setup();
+    const doctor = program.commands.find((command) => command.name() === 'doctor');
+    expect(doctor?.options.map((option) => option.long)).toContain('--project');
+  });
+});
+
+describe('generate library', () => {
+  it('passes the name, --name and --dir through with the CLI version', async () => {
+    const { generateLibrary, parse } = setup();
+
+    await parse(
+      'generate',
+      'library',
+      'contracts',
+      '--name',
+      '@acme/contracts',
+      '--dir',
+      'libs/contracts',
+    );
+
+    expect(generateLibrary).toHaveBeenCalledWith('contracts', process.cwd(), {
+      name: '@acme/contracts',
+      dir: 'libs/contracts',
+      cliVersion: expect.stringMatching(/^\d+\.\d+\.\d+/),
+    });
+  });
+
+  it('"g library" works and the options are optional', async () => {
+    const { generateLibrary, parse } = setup();
+
+    await parse('g', 'library', 'contracts');
+
+    expect(generateLibrary).toHaveBeenCalledWith(
+      'contracts',
+      process.cwd(),
+      expect.objectContaining({ name: undefined, dir: undefined }),
+    );
   });
 });

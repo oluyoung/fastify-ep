@@ -176,6 +176,45 @@ jobs:
         working-directory: ${{ runner.temp }}/harness/demo-app
         run: docker build -t demo-app .
 
+  workspace:
+    name: workspace (${{ matrix.pm }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pm: [npm, pnpm, yarn]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Enable corepack
+        run: corepack enable
+
+      # Same pnpm as the integration job. Yarn runs as Berry 4: the workspace pins it in package.json.
+      - name: Pin pnpm 11
+        if: matrix.pm == 'pnpm'
+        run: corepack prepare pnpm@11 --activate
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Pack tarball
+        run: npm pack --pack-destination "$RUNNER_TEMP"
+
+      - name: Install CLI from tarball (not the working tree)
+        run: npm install -g "$RUNNER_TEMP"/fastify-ep-*.tgz
+
+      # Two services and a library in one workspace: init/generate from several directories, one root
+      # install, typecheck/test/build/smoke each package, then build and run the Production image
+      # from the workspace root.
+      - name: Workspace smoke test
+        run: ${{ github.workspace }}/scripts/workspace-smoke.sh ${{ matrix.pm }} "$RUNNER_TEMP/workspace-demo"
+
   examples:
     runs-on: ubuntu-latest
     strategy:
@@ -253,7 +292,7 @@ jobs:
         run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.database }} users
 
   publish:
-    needs: [lint-and-build, integration, examples]
+    needs: [lint-and-build, integration, workspace, examples]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

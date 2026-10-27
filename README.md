@@ -108,13 +108,16 @@ names must be lowercase kebab-case (`user-profiles`).
 ## Commands
 
 ```
-fastify-ep init [name] [--pm npm|pnpm|yarn] [--preset minimal|standard|production] [--database none|drizzle|prisma] [--di native|awilix]
-fastify-ep generate module <name> [--no-test] [--scope singleton|request]
-fastify-ep generate resource <name> [--crud] [--no-test] [--scope singleton|request] [--singular <name>]
-fastify-ep g <module|resource> ...      # g is an alias for generate
+fastify-ep init [name|path] [--name <package-name>] [--pm npm|pnpm|yarn] [--preset minimal|standard|production] [--database none|drizzle|prisma] [--di native|awilix]
+fastify-ep generate module <name> [--no-test] [--scope singleton|request] [-C <dir>]
+fastify-ep generate resource <name> [--crud] [--no-test] [--scope singleton|request] [--singular <name>] [-C <dir>]
+fastify-ep generate library <name> [--name <package-name>] [--dir <path>]
+fastify-ep g <module|resource|library> ...      # g is an alias for generate
 ```
 
-- `init` — scaffold a new project. Prompts interactively for anything not
+- `init` — scaffold a new project. The argument is a name or a directory path
+  (`init apps/payments-api`); the package is named after the last segment, or after `--name`
+  (which may be scoped, e.g. `--name @acme/payments-api`). Prompts interactively for anything not
   passed as an argument/flag. `--preset` chooses how much infrastructure to start with (see
   Presets above). `--database drizzle` or `prisma` adds a typed
   `fastify.db` on PostgreSQL (guide: `docs/database.md` at the workspace root).
@@ -132,6 +135,39 @@ fastify-ep g <module|resource> ...      # g is an alias for generate
   `--singular <name>` sets the entity name; `--no-test` and `--scope` behave as for `module`.
   Generation stops without writing anything if the name is invalid or already used, or if the
   schema file already defines that table or model, and it restores everything if a step fails.
+- `generate library <name>` — inside a pnpm, npm or Yarn workspace, add a shared library: a plain
+  TypeScript package (TypeBox example schema, a Vitest test, built to `dist`) at `packages/<name>`
+  or wherever the workspace keeps libraries (`--dir` overrides). The package name uses the
+  workspace's scope (`@acme/contracts`) unless `--name` is given. It writes only the new
+  directory and prints the dependency line to add to a service. Services import a library
+  through its `dist`, so build it first.
+
+## Workspaces and monorepos
+
+`fastify-ep` works inside pnpm, npm and Yarn workspaces. It writes only inside the directory it
+creates; anything that belongs in the workspace's own files is printed for you to apply.
+
+```sh
+fastify-ep init apps/users-api --name @acme/users-api   # inherits the workspace's package manager
+fastify-ep generate library contracts                   # packages/contracts, as @acme/contracts
+pnpm install                                            # once, at the workspace root
+```
+
+- **Package manager.** Inside a workspace `init` uses the workspace's manager and skips the prompt;
+  a conflicting `--pm` is an error. Turborepo and Nx are recognised and mentioned, never edited.
+- **What you may need to add.** If the new directory is not matched by the workspace's package
+  globs, `init` prints the glob to add. In a pnpm workspace it does not write a
+  `pnpm-workspace.yaml`; it prints the `allowBuilds` entries to merge into the root one.
+- **Several services.** Each service keeps its own `.fastify-ep.json`. `generate` and `doctor`
+  find the service you are in from any subfolder, and `-C <dir>` (`--project`) picks one from the
+  workspace root.
+- **Libraries.** `generate library <name>` adds a plain package (a TypeBox schema, a test, built
+  to `dist`) under `packages/*` or `libs/*`. Add the printed dependency line to a service, and
+  build the library first: services import it through its `dist`.
+- **Docker.** With the Production preset, a service in a workspace gets a Dockerfile built from
+  the workspace root: `docker build -f apps/users-api/Dockerfile -t users-api .`. It builds the
+  libraries a service depends on. Yarn needs Berry (2+) with `nodeLinker: node-modules`;
+  otherwise no Dockerfile is generated and `init` says why.
 
 ## Why no DI runtime by default?
 

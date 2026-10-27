@@ -24,6 +24,29 @@ function majorOf(range: string | undefined): number {
 const cli = readPackageJson('../package.json');
 const template = readPackageJson('../templates/package.json');
 
+const library = readPackageJson('../library-template/package.json');
+
+describe('library-template/package.json stays in sync', () => {
+  it.each(['typescript', 'vite', 'vitest', '@types/node'])(
+    'uses the same %s major as the CLI',
+    (name) => {
+      expect(majorOf(library.devDependencies?.[name]), name).toBe(
+        majorOf(cli.devDependencies?.[name]),
+      );
+    },
+  );
+
+  it('uses the same TypeBox range as the generated services', () => {
+    expect(library.dependencies?.['@sinclair/typebox']).toBe(
+      template.dependencies?.['@sinclair/typebox'],
+    );
+  });
+
+  it("matches the services' minimum Node major", () => {
+    expect(majorOf(library.engines?.node)).toBe(MIN_NODE_MAJOR);
+  });
+});
+
 describe('CLI and generated-project manifests stay in sync', () => {
   it('templates/package.json depends on the Fastify major that doctor supports', () => {
     const range = template.dependencies?.fastify;
@@ -49,7 +72,7 @@ describe('CLI and generated-project manifests stay in sync', () => {
     ).toBe(MIN_NODE_MAJOR);
   });
 
-  it.each(['typescript', 'vitest', 'tsx', '@types/node'])(
+  it.each(['typescript', 'vite', 'vitest', 'tsx', '@types/node'])(
     'uses the same %s major in the CLI and the generated project',
     (name) => {
       const cliRange = cli.devDependencies?.[name];
@@ -68,9 +91,9 @@ function readText(relativePath: string): string {
 
 /** Overlay files that replace a base file wholesale must stay the base file plus the database lines. */
 describe.each(
-  // `di/`, `preset/` and `docker/` hold overlays that add files rather than replace base ones.
+  // `di/`, `preset/`, `docker/` and `docker-workspace/` hold overlays that add files rather than replace base ones.
   readdirSync(fileURLToPath(new URL('../template-overlays', import.meta.url))).filter(
-    (name) => !['di', 'preset', 'docker'].includes(name),
+    (name) => !['di', 'preset', 'docker', 'docker-workspace'].includes(name),
   ),
 )('the %s overlay stays in sync with the base templates', (database) => {
   it('src/config/env.ts is the base env.ts plus DATABASE_URL lines', () => {
@@ -133,6 +156,7 @@ describe('template files are not git-ignored', () => {
   it.each([
     'templates',
     'template-overlays',
+    'library-template',
     'module-template',
     'module-template-awilix',
     'resource-template',
@@ -164,6 +188,7 @@ describe('template files survive `npm pack`', () => {
   it.each([
     'templates',
     'template-overlays',
+    'library-template',
     'module-template',
     'module-template-awilix',
     'resource-template',

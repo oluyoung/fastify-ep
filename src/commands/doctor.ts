@@ -1,10 +1,11 @@
 import * as clack from '@clack/prompts';
 import { runDoctorChecks } from '../doctor.js';
+import { resolveProjectOrExit } from './project.js';
 
-export async function runDoctor(cwd: string): Promise<void> {
+export async function runDoctor(cwd: string, options: { project?: string } = {}): Promise<void> {
   clack.intro('fastify-ep doctor');
 
-  const checks = runDoctorChecks(cwd);
+  const checks = runDoctorChecks(resolveProjectOrExit(cwd, options.project));
   for (const check of checks) {
     if (check.pass) {
       clack.log.success(check.name);

@@ -20,6 +20,87 @@ function makeUnmarkedTemplatesDir(): string {
 }
 
 describe('scaffoldProject', () => {
+  it('writes a pnpm-workspace.yaml for a standalone pnpm project, but not inside a workspace', () => {
+    workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
+    const standalone = join(workDir, 'standalone');
+    const nested = join(workDir, 'apps', 'nested');
+
+    scaffoldProject({
+      targetDir: standalone,
+      projectName: 'a',
+      cliVersion: '0.1.0',
+      packageManager: 'pnpm',
+    });
+    scaffoldProject({
+      targetDir: nested,
+      projectName: 'b',
+      cliVersion: '0.1.0',
+      packageManager: 'pnpm',
+      workspace: { servicePath: 'apps/nested', docker: true },
+    });
+
+    expect(existsSync(join(standalone, 'pnpm-workspace.yaml'))).toBe(true);
+    expect(existsSync(join(nested, 'pnpm-workspace.yaml'))).toBe(false);
+    expect(existsSync(join(nested, '.fastify-ep.json'))).toBe(true);
+  });
+
+  it.each(['npm', 'pnpm', 'yarn'] as const)(
+    'production in a workspace generates the %s workspace Dockerfile for the service path',
+    (packageManager) => {
+      workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
+      const targetDir = join(workDir, 'apps', 'payments-api');
+
+      scaffoldProject({
+        targetDir,
+        projectName: '@acme/payments-api',
+        cliVersion: '0.1.0',
+        preset: 'production',
+        packageManager,
+        workspace: { servicePath: 'apps/payments-api', docker: true },
+      });
+
+      const dockerfile = readFileSync(join(targetDir, 'Dockerfile'), 'utf8');
+      expect(dockerfile).toContain('docker build -f apps/payments-api/Dockerfile');
+      expect(dockerfile).toContain('WORKDIR /repo/apps/payments-api');
+      expect(dockerfile).toContain('@acme/payments-api');
+      expect(dockerfile).not.toContain('{{');
+      expect(existsSync(join(targetDir, 'Dockerfile.dockerignore'))).toBe(true);
+      expect(existsSync(join(targetDir, '.dockerignore'))).toBe(false);
+    },
+  );
+
+  it('production in a workspace skips the Dockerfile when the workspace cannot use one', () => {
+    workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
+    const targetDir = join(workDir, 'apps', 'svc');
+
+    scaffoldProject({
+      targetDir,
+      projectName: 'svc',
+      cliVersion: '0.1.0',
+      preset: 'production',
+      packageManager: 'yarn',
+      workspace: { servicePath: 'apps/svc', docker: false },
+    });
+
+    expect(existsSync(join(targetDir, 'Dockerfile'))).toBe(false);
+    expect(existsSync(join(targetDir, 'Dockerfile.dockerignore'))).toBe(false);
+    expect(existsSync(join(targetDir, 'src/infrastructure/http/security.plugin.ts'))).toBe(true);
+  });
+
+  it('scaffolds into a nested directory with a scoped package name', () => {
+    workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
+    const targetDir = join(workDir, 'apps', 'payments-api');
+
+    scaffoldProject({ targetDir, projectName: '@acme/payments-api', cliVersion: '0.1.0' });
+
+    const pkg = JSON.parse(readFileSync(join(targetDir, 'package.json'), 'utf8')) as {
+      name: string;
+    };
+    expect(pkg.name).toBe('@acme/payments-api');
+    expect(readFileSync(join(targetDir, 'src/app.ts'), 'utf8')).toContain("'@acme/payments-api'");
+    expect(existsSync(join(targetDir, '.fastify-ep.json'))).toBe(true);
+  });
+
   it('copies the template tree, renders {{projectName}}, and writes a valid manifest last', () => {
     workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
     const targetDir = join(workDir, 'my-app');

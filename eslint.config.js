@@ -18,6 +18,7 @@ export default tseslint.config(
     // identifiers before these files exist as valid TypeScript.
     ignores: [
       'dist/**',
+      'library-template/**',
       'module-template/**',
       'module-template-awilix/**',
       'resource-template/**',
