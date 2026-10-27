@@ -50,6 +50,16 @@ export interface ScaffoldOptions {
   preset?: Preset;
   /** Package manager the project will use; pnpm gets a `pnpm-workspace.yaml`, Production a matching Dockerfile. Defaults to npm for the Dockerfile. */
   packageManager?: PackageManager;
+  /**
+   * Set when the project sits inside an existing workspace: no nested `pnpm-workspace.yaml` is
+   * written, and Production's Dockerfile is the workspace variant (build context = workspace root).
+   */
+  workspace?: {
+    /** The project's path relative to the workspace root, with `/` separators. */
+    servicePath: string;
+    /** False when no Dockerfile can be generated for this workspace (for example Yarn classic). */
+    docker: boolean;
+  };
   /** Override for tests; defaults to this package's real `templates/` dir. */
   templatesDir?: string;
   /** Override for tests; defaults to this package's real `template-overlays/` dir. */
@@ -102,7 +112,7 @@ function destinationName(name: string, isRoot: boolean): string {
 function copyTemplateDir(
   srcDir: string,
   destDir: string,
-  projectName: string,
+  vars: Record<string, string>,
   isRoot = true,
 ): void {
   mkdirSync(destDir, { recursive: true });
@@ -110,10 +120,10 @@ function copyTemplateDir(
     const srcPath = join(srcDir, entry.name);
     const destPath = join(destDir, destinationName(entry.name, isRoot));
     if (entry.isDirectory()) {
-      copyTemplateDir(srcPath, destPath, projectName, false);
+      copyTemplateDir(srcPath, destPath, vars, false);
       continue;
     }
-    const content = renderTemplate(readFileSync(srcPath, 'utf8'), { projectName });
+    const content = renderTemplate(readFileSync(srcPath, 'utf8'), vars);
     if (isRoot && entry.name === 'package.json' && existsSync(destPath)) {
       writeFileSync(destPath, mergePackageJson(destPath, content));
     } else {
@@ -143,7 +153,8 @@ function presetOverlayNames(preset: Preset): string[] {
   return preset === 'production' ? ['standard', 'production'] : ['standard'];
 }
 
-function pnpmWorkspaceYaml(database: DatabaseStrategy): string {
+/** The `pnpm-workspace.yaml` a standalone pnpm project gets (and a workspace root needs merged in). */
+export function pnpmWorkspaceYaml(database: DatabaseStrategy): string {
   const lines = Object.entries(PNPM_ALLOWED_BUILDS[database]).map(
     ([name, allowed]) => `  ${/^[\w-]+$/.test(name) ? name : `'${name}'`}: ${allowed}`,
   );
@@ -201,13 +212,17 @@ export function scaffoldProject({
   di = 'native',
   preset = DEFAULT_PRESET,
   packageManager,
+  workspace,
   templatesDir = TEMPLATES_DIR,
   overlaysDir = OVERLAYS_DIR,
 }: ScaffoldOptions): void {
   const alreadyExisted = existsSync(targetDir);
   const presetDirs = presetOverlayNames(preset).map((name) => join(overlaysDir, 'preset', name));
   const dockerDir =
-    preset === 'production' ? join(overlaysDir, 'docker', packageManager ?? 'npm') : undefined;
+    preset !== 'production' || workspace?.docker === false
+      ? undefined
+      : join(overlaysDir, workspace ? 'docker-workspace' : 'docker', packageManager ?? 'npm');
+  const vars = { projectName, servicePath: workspace?.servicePath ?? '' };
   const overlayDir = database === 'none' ? undefined : join(overlaysDir, database);
   const diOverlayDir = di === 'native' ? undefined : join(overlaysDir, 'di', di);
   const writtenTopLevel = new Set<string>(['.fastify-ep.json', 'pnpm-workspace.yaml']);
@@ -227,21 +242,21 @@ export function scaffoldProject({
     }
 
     readdirSync(templatesDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
-    copyTemplateDir(templatesDir, targetDir, projectName);
+    copyTemplateDir(templatesDir, targetDir, vars);
 
     for (const dir of [...presetDirs, ...(dockerDir ? [dockerDir] : [])]) {
       readdirSync(dir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
-      copyTemplateDir(dir, targetDir, projectName);
+      copyTemplateDir(dir, targetDir, vars);
     }
 
     if (overlayDir !== undefined) {
       readdirSync(overlayDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
-      copyTemplateDir(overlayDir, targetDir, projectName);
+      copyTemplateDir(overlayDir, targetDir, vars);
     }
 
     if (diOverlayDir !== undefined) {
       readdirSync(diOverlayDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
-      copyTemplateDir(diOverlayDir, targetDir, projectName);
+      copyTemplateDir(diOverlayDir, targetDir, vars);
       if (database !== 'none') {
         registerDatabaseInContainer(targetDir);
       }
@@ -262,7 +277,7 @@ export function scaffoldProject({
     }
     insertModuleRegistration(appTsPath, 'health');
 
-    if (packageManager === 'pnpm') {
+    if (packageManager === 'pnpm' && !workspace) {
       writeFileSync(join(targetDir, 'pnpm-workspace.yaml'), pnpmWorkspaceYaml(database));
     }
 

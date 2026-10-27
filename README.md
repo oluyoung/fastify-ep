@@ -108,13 +108,15 @@ names must be lowercase kebab-case (`user-profiles`).
 ## Commands
 
 ```
-fastify-ep init [name] [--pm npm|pnpm|yarn] [--preset minimal|standard|production] [--database none|drizzle|prisma] [--di native|awilix]
+fastify-ep init [name|path] [--name <package-name>] [--pm npm|pnpm|yarn] [--preset minimal|standard|production] [--database none|drizzle|prisma] [--di native|awilix]
 fastify-ep generate module <name> [--no-test] [--scope singleton|request]
 fastify-ep generate resource <name> [--crud] [--no-test] [--scope singleton|request] [--singular <name>]
 fastify-ep g <module|resource> ...      # g is an alias for generate
 ```
 
-- `init` — scaffold a new project. Prompts interactively for anything not
+- `init` — scaffold a new project. The argument is a name or a directory path
+  (`init apps/payments-api`); the package is named after the last segment, or after `--name`
+  (which may be scoped, e.g. `--name @acme/payments-api`). Prompts interactively for anything not
   passed as an argument/flag. `--preset` chooses how much infrastructure to start with (see
   Presets above). `--database drizzle` or `prisma` adds a typed
   `fastify.db` on PostgreSQL (guide: `docs/database.md` at the workspace root).

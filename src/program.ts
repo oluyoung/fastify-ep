@@ -62,7 +62,11 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
   program
     .command('init')
     .description('scaffold a new project')
-    .argument('[name]', 'project name')
+    .argument('[name]', 'project name, or a directory path such as apps/payments-api')
+    .option(
+      '--name <package-name>',
+      'package name when it differs from the directory name (may be scoped, e.g. @acme/payments-api)',
+    )
     .option('--pm <manager>', `package manager (${PACKAGE_MANAGERS.join(', ')})`)
     .option('--preset <preset>', `starting point (${PRESETS.join(', ')})`)
     .option('--database <strategy>', `database (${DATABASE_STRATEGIES.join(', ')})`)
@@ -70,7 +74,7 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
     .action(
       async (
         name: string | undefined,
-        options: { pm?: string; preset?: string; database?: string; di?: string },
+        options: { name?: string; pm?: string; preset?: string; database?: string; di?: string },
       ) => {
         if (
           options.pm &&
@@ -99,6 +103,7 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
         await runInit(
           name,
           {
+            name: options.name,
             pm: options.pm as (typeof PACKAGE_MANAGERS)[number] | undefined,
             preset: options.preset as Preset | undefined,
             database: options.database as DatabaseStrategy | undefined,
