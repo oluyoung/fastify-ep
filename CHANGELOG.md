@@ -45,6 +45,11 @@ output of `init` and every generator is identical to 0.6.1.
 
 ### Changed
 
+- Generated projects, libraries and the CLI use `vitest ^5.0.5` and list `vite ^7.0.0` as a dev
+  dependency. Vitest 4.1 crashes `npm install` on npm 10 (the npm that ships with Node 22) with
+  `Cannot read properties of null (reading 'edgesOut')`, so 0.6.1's generated projects could not
+  install there. Vitest 5 installs cleanly and `npm audit` is clean. It makes `vite` a peer
+  dependency, which npm and pnpm install on their own but Yarn does not, hence the explicit entry.
 - `init` rejects `.` (the current directory) with a clear message; it was already rejected as an
   invalid package name. Error messages for an invalid package name now say how to fix it.
 

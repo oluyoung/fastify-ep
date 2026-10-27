@@ -27,11 +27,14 @@ const template = readPackageJson('../templates/package.json');
 const library = readPackageJson('../library-template/package.json');
 
 describe('library-template/package.json stays in sync', () => {
-  it.each(['typescript', 'vitest', '@types/node'])('uses the same %s major as the CLI', (name) => {
-    expect(majorOf(library.devDependencies?.[name]), name).toBe(
-      majorOf(cli.devDependencies?.[name]),
-    );
-  });
+  it.each(['typescript', 'vite', 'vitest', '@types/node'])(
+    'uses the same %s major as the CLI',
+    (name) => {
+      expect(majorOf(library.devDependencies?.[name]), name).toBe(
+        majorOf(cli.devDependencies?.[name]),
+      );
+    },
+  );
 
   it('uses the same TypeBox range as the generated services', () => {
     expect(library.dependencies?.['@sinclair/typebox']).toBe(
@@ -69,7 +72,7 @@ describe('CLI and generated-project manifests stay in sync', () => {
     ).toBe(MIN_NODE_MAJOR);
   });
 
-  it.each(['typescript', 'vitest', 'tsx', '@types/node'])(
+  it.each(['typescript', 'vite', 'vitest', 'tsx', '@types/node'])(
     'uses the same %s major in the CLI and the generated project',
     (name) => {
       const cliRange = cli.devDependencies?.[name];
