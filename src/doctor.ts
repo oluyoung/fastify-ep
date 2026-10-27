@@ -15,7 +15,7 @@ export interface DoctorCheck {
   detail?: string;
 }
 
-export const MIN_NODE_MAJOR = 20;
+export const MIN_NODE_MAJOR = 22;
 export const SUPPORTED_FASTIFY_MAJOR = 5;
 
 const HEALTH_MODULE_FILES = [
@@ -39,14 +39,14 @@ const DATABASE_CONFIG_FILES: Record<Exclude<DatabaseStrategy, 'none'>, string[]>
   prisma: ['prisma.config.ts', 'prisma/schema.prisma'],
 };
 
-/** Prisma 7 supports Node ^20.19 || ^22.12 || >=24. */
+/** Prisma 7 supports Node ^20.19 || ^22.12 || >=24; fastify-ep itself requires >=22. */
 export function prismaSupportsNode(version: string): boolean {
   const [major, minor] = version
     .replace(/^v/, '')
     .split('.')
     .map((part) => Number.parseInt(part, 10));
   if (Number.isNaN(major) || Number.isNaN(minor)) return false;
-  return (major === 20 && minor >= 19) || (major === 22 && minor >= 12) || major >= 24;
+  return (major === 22 && minor >= 12) || major >= 24;
 }
 
 function nodeMajorVersion(version: string): number {
@@ -283,7 +283,7 @@ function runDatabaseChecks(
       pass: nodeOk,
       detail: nodeOk
         ? undefined
-        : `running Node ${process.version}, but Prisma 7 requires Node ^20.19, ^22.12 or >=24.`,
+        : `running Node ${process.version}, but Prisma 7 requires Node ^22.12 or >=24.`,
     });
   }
 

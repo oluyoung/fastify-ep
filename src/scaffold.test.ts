@@ -164,12 +164,22 @@ describe('scaffoldProject with a database', () => {
 
     const pkg = readJson(targetDir, 'package.json');
     expect(pkg.scripts.postinstall).toBe('prisma generate');
-    expect(pkg.engines.node).toBe('>=20.19');
+    expect(pkg.engines.node).toBe('>=22.12');
     expect(pkg.dependencies['@prisma/client']).toMatch(/^\^7\./);
     expect(pkg.devDependencies.prisma).toMatch(/^\^7\./);
     expect(existsSync(join(targetDir, 'prisma/schema.prisma'))).toBe(true);
     expect(existsSync(join(targetDir, 'prisma.config.ts'))).toBe(true);
     expect(read(targetDir, '.gitignore')).toContain('src/generated/');
+  });
+
+  it('writes the template `gitignore` as `.gitignore` (npm drops files with that name)', () => {
+    workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
+    const targetDir = join(workDir, 'my-app');
+
+    scaffoldProject({ targetDir, projectName: 'my-app', cliVersion: '0.3.0' });
+
+    expect(read(targetDir, '.gitignore')).toContain('node_modules/');
+    expect(existsSync(join(targetDir, 'gitignore'))).toBe(false);
   });
 
   it('none: adds no database files and leaves package.json dependencies as the base', () => {

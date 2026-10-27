@@ -241,7 +241,7 @@ describe('runDoctorChecks for database projects', () => {
 
 describe('prismaSupportsNode', () => {
   it.each([
-    ['v20.19.0', true],
+    ['v20.19.0', false],
     ['v20.18.9', false],
     ['v22.12.0', true],
     ['v22.11.0', false],

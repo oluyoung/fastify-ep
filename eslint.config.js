@@ -10,8 +10,12 @@ export default tseslint.config(
     files: ['src/**/*.ts'],
   },
   {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: { console: 'readonly', process: 'readonly' } },
+  },
+  {
     // Not real TS: `{{moduleName}}`/`{{ModuleName}}` placeholders are rendered into
     // identifiers before these files exist as valid TypeScript.
-    ignores: ['dist/**', 'module-template/**'],
+    ignores: ['dist/**', 'module-template/**', 'examples/**'],
   },
 );

@@ -4,10 +4,15 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
-## [Unreleased] — v0.3 Database Integration
+## [Unreleased]
+
+## [0.3.0] — Database Integration
 
 ### Added
 
+- `examples/drizzle-api` and `examples/prisma-api`: real `init --database` output plus a generated
+  `orders` module, regenerated with `npm run examples`. CI fails if they drift from the CLI and runs
+  install, typecheck, test, build and the readiness smoke test on each against Postgres.
 - **Database strategies**: `fastify-ep init --database none|drizzle|prisma` (or the
   interactive "Database?" prompt). PostgreSQL only. `none` stays the default.
 - Database projects get `src/infrastructure/database/` with a Fastify plugin that
@@ -18,7 +23,7 @@ versions may include breaking changes to generated output.
 - **Drizzle**: `drizzle-orm` + `postgres`, `drizzle.config.ts`, an empty
   `schema.ts` to start from.
 - **Prisma 7**: `@prisma/client` with the `pg` driver adapter, `prisma/schema.prisma`,
-  `prisma.config.ts`, `prisma generate` on install, and `engines.node >=20.19`.
+  `prisma.config.ts`, `prisma generate` on install, and `engines.node >=22.12`.
 - `fastify-ep doctor` checks database projects: ORM dependencies, ORM config files,
   the database plugin file and registration, `DATABASE_URL` in the env schema, and
   (Prisma) a supported Node version.
@@ -30,6 +35,10 @@ versions may include breaking changes to generated output.
 
 ### Changed
 
+- **Node 22 is now the minimum** (was 20): for the CLI (`engines`), `doctor`, CI and the
+  generated project (`engines.node >=22`). Node 20 is end of life, the template's
+  `@fastify/swagger-ui` dependency tree now requires Node 22, and pnpm 11 does not
+  run on Node 20.
 - Manifest `architecture.database` accepts `none`, `drizzle` or `prisma`
   (still `schemaVersion: 2`).
 - The readiness tests moved from `health.test.ts` to `health.ready.test.ts`.
@@ -41,6 +50,9 @@ versions may include breaking changes to generated output.
 - Projects created with `--pm pnpm` now install on pnpm 11, which refuses to
   install while dependency build scripts are neither allowed nor denied. `init`
   writes a `pnpm-workspace.yaml` with `allowBuilds`.
+- Projects created from the published package now get a `.gitignore`. npm never
+  publishes files named `.gitignore`, so the template ships as `gitignore` and
+  `init` renames it. Without this, `.env` and `node_modules` were committable.
 
 ## [0.2.0] — Production Foundations
 

@@ -70,6 +70,14 @@ function mergePackageJson(destPath: string, overlayContent: string): string {
   return `${JSON.stringify(merged, null, 2)}\n`;
 }
 
+/**
+ * npm never publishes a file named `.gitignore`, so templates ship it as `gitignore` and it is renamed
+ * on the way out. Only the project root needs this.
+ */
+function destinationName(name: string, isRoot: boolean): string {
+  return isRoot && name === 'gitignore' ? '.gitignore' : name;
+}
+
 /** Copies `srcDir` over `destDir`. A top-level `package.json` already in `destDir` is merged, not replaced. */
 function copyTemplateDir(
   srcDir: string,
@@ -80,7 +88,7 @@ function copyTemplateDir(
   mkdirSync(destDir, { recursive: true });
   for (const entry of readdirSync(srcDir, { withFileTypes: true })) {
     const srcPath = join(srcDir, entry.name);
-    const destPath = join(destDir, entry.name);
+    const destPath = join(destDir, destinationName(entry.name, isRoot));
     if (entry.isDirectory()) {
       copyTemplateDir(srcPath, destPath, projectName, false);
       continue;
@@ -124,11 +132,11 @@ export function scaffoldProject({
       throw new Error(`no template overlay for database "${database}" at "${overlayDir}".`);
     }
 
-    readdirSync(templatesDir).forEach((name) => writtenTopLevel.add(name));
+    readdirSync(templatesDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
     copyTemplateDir(templatesDir, targetDir, projectName);
 
     if (overlayDir !== undefined) {
-      readdirSync(overlayDir).forEach((name) => writtenTopLevel.add(name));
+      readdirSync(overlayDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
       copyTemplateDir(overlayDir, targetDir, projectName);
     }
 

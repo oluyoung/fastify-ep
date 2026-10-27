@@ -1,6 +1,6 @@
 {
   "name": "fastify-ep",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Scaffolds and keeps scaffolding a domain-driven module structure on native Fastify, without a DI runtime.",
   "type": "module",
   "repository": {
@@ -21,7 +21,7 @@
     "module-template"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build": "tsc",
@@ -30,7 +30,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "examples": "node scripts/build-examples.mjs"
   },
   "dependencies": {
     "@clack/prompts": "^1.7.0",

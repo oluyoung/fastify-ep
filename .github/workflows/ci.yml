@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - run: npm ci
@@ -60,7 +60,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Enable corepack
@@ -78,6 +78,13 @@ jobs:
       - name: Pack tarball
         run: npm pack --pack-destination "$RUNNER_TEMP"
 
+      - name: Tarball ships every template file
+        run: |
+          tarball=$(ls "$RUNNER_TEMP"/fastify-ep-*.tgz)
+          for f in templates/gitignore template-overlays/drizzle/.env.example template-overlays/prisma/.env.example; do
+            tar -tzf "$tarball" | grep -qx "package/$f" || { echo "missing from tarball: $f"; exit 1; }
+          done
+
       - name: Install CLI from tarball (not the working tree)
         run: npm install -g "$RUNNER_TEMP"/fastify-ep-*.tgz
 
@@ -90,6 +97,10 @@ jobs:
       - name: Install generated project's dependencies
         working-directory: ${{ runner.temp }}/harness/demo-app
         run: ${{ matrix.pm }} install
+
+      - name: Generated project has .gitignore
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: grep -qx '.env' .gitignore
 
       - name: Doctor (fresh project)
         working-directory: ${{ runner.temp }}/harness/demo-app
@@ -127,53 +138,76 @@ jobs:
         working-directory: ${{ runner.temp }}/harness/demo-app
         run: ${{ matrix.pm }} run build
 
-      - name: Smoke test the built server (probes + graceful shutdown)
+      - name: Smoke test (probes, graceful shutdown, unreachable database)
         working-directory: ${{ runner.temp }}/harness/demo-app
+        run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.database }}
+
+  examples:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [drizzle-api, prisma-api]
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/app
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Examples match what the CLI generates today
         run: |
-          test -z "$(find dist -name '*.test.js')" || { echo "test files leaked into dist/"; exit 1; }
+          npm run examples
+          git diff --exit-code -- examples/
+          test -z "$(git ls-files --others --exclude-standard examples/)" || { git ls-files --others --exclude-standard examples/; exit 1; }
 
-          PORT=3999 node dist/server.js > server.log 2>&1 &
-          pid=$!
-          fail() { echo "smoke test failed: $1"; cat server.log; kill "$pid" 2>/dev/null; exit 1; }
+      - name: Install
+        working-directory: examples/${{ matrix.example }}
+        run: npm install
 
-          for _ in $(seq 1 50); do
-            curl -sf http://127.0.0.1:3999/health/live > /dev/null && break
-            sleep 0.2
-          done
+      - name: Doctor
+        working-directory: examples/${{ matrix.example }}
+        run: node ${{ github.workspace }}/dist/cli.js doctor
 
-          curl -sf http://127.0.0.1:3999/health/live  || fail "/health/live"
-          ready=$(curl -sf http://127.0.0.1:3999/health/ready) || fail "/health/ready"
-          curl -sf http://127.0.0.1:3999/orders       || fail "/orders (generated module)"
+      - name: Typecheck
+        working-directory: examples/${{ matrix.example }}
+        run: npm run typecheck
 
-          if [ "${{ matrix.database }}" != "none" ]; then
-            echo "$ready" | grep -q '"database":"up"' || fail "database readiness check is not up: $ready"
-          fi
+      - name: Test
+        working-directory: examples/${{ matrix.example }}
+        run: npm run test
 
-          kill -TERM "$pid"
-          wait "$pid" || fail "server did not exit 0 on SIGTERM"
-          grep -q "shutdown signal received" server.log || fail "shutdown was not logged"
+      - name: Build
+        working-directory: examples/${{ matrix.example }}
+        run: npm run build
 
-      - name: Smoke test with an unreachable database (not ready, still alive)
-        if: matrix.database != 'none'
-        working-directory: ${{ runner.temp }}/harness/demo-app
-        run: |
-          DATABASE_URL=postgres://postgres:postgres@127.0.0.1:1/app PORT=3998 node dist/server.js > bad.log 2>&1 &
-          pid=$!
-          fail() { echo "smoke test failed: $1"; cat bad.log; kill "$pid" 2>/dev/null; exit 1; }
-
-          for _ in $(seq 1 50); do
-            curl -sf http://127.0.0.1:3998/health/live > /dev/null && break
-            sleep 0.2
-          done
-
-          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3998/health/live)" = "200" ] || fail "liveness must stay 200"
-          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3998/health/ready)" = "503" ] || fail "readiness must be 503"
-
-          kill -TERM "$pid"
-          wait "$pid" || fail "server did not exit 0 on SIGTERM"
+      - name: Smoke test
+        working-directory: examples/${{ matrix.example }}
+        run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.example == 'drizzle-api' && 'drizzle' || 'prisma' }}
 
   publish:
-    needs: [lint-and-build, integration]
+    needs: [lint-and-build, integration, examples]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -182,9 +216,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Tag matches package.json version
+        run: |
+          pkg=$(node -p "require('./package.json').version")
+          [ "${GITHUB_REF_NAME}" = "v${pkg}" ] || { echo "tag ${GITHUB_REF_NAME} != package.json version v${pkg}"; exit 1; }
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org
           cache: npm
 
