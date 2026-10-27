@@ -109,9 +109,10 @@ names must be lowercase kebab-case (`user-profiles`).
 
 ```
 fastify-ep init [name|path] [--name <package-name>] [--pm npm|pnpm|yarn] [--preset minimal|standard|production] [--database none|drizzle|prisma] [--di native|awilix]
-fastify-ep generate module <name> [--no-test] [--scope singleton|request]
-fastify-ep generate resource <name> [--crud] [--no-test] [--scope singleton|request] [--singular <name>]
-fastify-ep g <module|resource> ...      # g is an alias for generate
+fastify-ep generate module <name> [--no-test] [--scope singleton|request] [-C <dir>]
+fastify-ep generate resource <name> [--crud] [--no-test] [--scope singleton|request] [--singular <name>] [-C <dir>]
+fastify-ep generate library <name> [--name <package-name>] [--dir <path>]
+fastify-ep g <module|resource|library> ...      # g is an alias for generate
 ```
 
 - `init` — scaffold a new project. The argument is a name or a directory path
@@ -134,6 +135,12 @@ fastify-ep g <module|resource> ...      # g is an alias for generate
   `--singular <name>` sets the entity name; `--no-test` and `--scope` behave as for `module`.
   Generation stops without writing anything if the name is invalid or already used, or if the
   schema file already defines that table or model, and it restores everything if a step fails.
+- `generate library <name>` — inside a pnpm, npm or Yarn workspace, add a shared library: a plain
+  TypeScript package (TypeBox example schema, a Vitest test, built to `dist`) at `packages/<name>`
+  or wherever the workspace keeps libraries (`--dir` overrides). The package name uses the
+  workspace's scope (`@acme/contracts`) unless `--name` is given. It writes only the new
+  directory and prints the dependency line to add to a service. Services import a library
+  through its `dist`, so build it first.
 
 ## Why no DI runtime by default?
 

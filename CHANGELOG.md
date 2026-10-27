@@ -30,6 +30,19 @@ versions may include breaking changes to generated output.
 - Next steps inside a workspace: one install at the root and the workspace dev command
   (`pnpm --filter <name> dev`, `npm run dev -w <name>`, `yarn workspace <name> dev`).
 
+- `generate module`, `generate resource` and `doctor` work from anywhere inside a service in a
+  workspace: they walk up from the current directory to the nearest `.fastify-ep.json`, stopping at
+  the workspace root. From the workspace root the error lists the services found and suggests
+  `--project`. The new `-C, --project <dir>` option runs a command against a given project.
+  Outside a workspace the current directory is used as before.
+
+- `generate library <name>`: inside a workspace, adds a shared library package (`package.json`
+  with `exports` and `files` pointing at `dist`, `tsconfig.json`, an example TypeBox schema, a
+  Vitest test and a `.fastify-ep-library.json` marker). It goes under the workspace's
+  `packages/*` or `libs/*` glob, else `packages/<name>` (`--dir` overrides), is scoped like the
+  workspace's other packages (`--name` overrides), and prints the dependency line to add to a
+  service. It writes only the new directory and fails outside a workspace.
+
 ### Changed
 
 - `init` rejects `.` (the current directory) with a clear message; it was already rejected as an

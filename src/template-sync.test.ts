@@ -24,6 +24,26 @@ function majorOf(range: string | undefined): number {
 const cli = readPackageJson('../package.json');
 const template = readPackageJson('../templates/package.json');
 
+const library = readPackageJson('../library-template/package.json');
+
+describe('library-template/package.json stays in sync', () => {
+  it.each(['typescript', 'vitest', '@types/node'])('uses the same %s major as the CLI', (name) => {
+    expect(majorOf(library.devDependencies?.[name]), name).toBe(
+      majorOf(cli.devDependencies?.[name]),
+    );
+  });
+
+  it('uses the same TypeBox range as the generated services', () => {
+    expect(library.dependencies?.['@sinclair/typebox']).toBe(
+      template.dependencies?.['@sinclair/typebox'],
+    );
+  });
+
+  it("matches the services' minimum Node major", () => {
+    expect(majorOf(library.engines?.node)).toBe(MIN_NODE_MAJOR);
+  });
+});
+
 describe('CLI and generated-project manifests stay in sync', () => {
   it('templates/package.json depends on the Fastify major that doctor supports', () => {
     const range = template.dependencies?.fastify;
@@ -133,6 +153,7 @@ describe('template files are not git-ignored', () => {
   it.each([
     'templates',
     'template-overlays',
+    'library-template',
     'module-template',
     'module-template-awilix',
     'resource-template',
@@ -164,6 +185,7 @@ describe('template files survive `npm pack`', () => {
   it.each([
     'templates',
     'template-overlays',
+    'library-template',
     'module-template',
     'module-template-awilix',
     'resource-template',

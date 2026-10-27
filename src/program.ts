@@ -2,8 +2,10 @@ import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import { runDoctor } from './commands/doctor.js';
 import {
+  runGenerateLibrary,
   runGenerateModule,
   runGenerateResource,
+  type GenerateLibraryCommandOptions,
   type GenerateModuleCommandOptions,
   type GenerateResourceCommandOptions,
 } from './commands/generate.js';
@@ -35,12 +37,18 @@ export interface ProgramRunners {
     cwd: string,
     options: GenerateResourceCommandOptions,
   ) => Promise<void>;
+  generateLibrary: (
+    name: string,
+    cwd: string,
+    options: GenerateLibraryCommandOptions,
+  ) => Promise<void>;
 }
 
 export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
   const run: ProgramRunners = {
     generateModule: runGenerateModule,
     generateResource: runGenerateResource,
+    generateLibrary: runGenerateLibrary,
     ...runners,
   };
   const program = new Command();
@@ -51,6 +59,12 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
     }
     return scope as DiScope;
   }
+
+  const withProjectOption = (command: Command): Command =>
+    command.option(
+      '-C, --project <dir>',
+      'run against the fastify-ep project in <dir> (default: the project containing the current directory)',
+    );
 
   program
     .name('fastify-ep')
@@ -120,8 +134,7 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
     .alias('g')
     .description('generate code in a scaffolded project');
 
-  generate
-    .command('module <name>')
+  withProjectOption(generate.command('module <name>'))
     .description('add a new domain module')
     .option('--no-test', 'skip generating the module test file')
     .option(
@@ -129,15 +142,15 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
       `service lifetime for Awilix projects (${DI_SCOPES.join(', ')})`,
       'singleton',
     )
-    .action(async (name: string, options: { test: boolean; scope: string }) => {
+    .action(async (name: string, options: { test: boolean; scope: string; project?: string }) => {
       await run.generateModule(name, process.cwd(), {
         withTests: options.test,
         scope: parseScope(options.scope),
+        project: options.project,
       });
     });
 
-  generate
-    .command('resource <name>')
+  withProjectOption(generate.command('resource <name>'))
     .description('add a module with a repository, optionally with CRUD routes')
     .option('--crud', 'generate create/read/update/delete routes backed by the project database')
     .option('--no-test', 'skip generating the resource test file')
@@ -150,22 +163,47 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
     .action(
       async (
         name: string,
-        options: { crud?: boolean; test: boolean; scope: string; singular?: string },
+        options: {
+          crud?: boolean;
+          test: boolean;
+          scope: string;
+          singular?: string;
+          project?: string;
+        },
       ) => {
         await run.generateResource(name, process.cwd(), {
           crud: options.crud,
           withTests: options.test,
           scope: parseScope(options.scope),
           singular: options.singular,
+          project: options.project,
         });
       },
     );
 
-  program
-    .command('doctor')
+  generate
+    .command('library <name>')
+    .description('add a shared library package to the workspace')
+    .option(
+      '--name <package-name>',
+      'package name when it differs from the workspace scope + library name (may be scoped, e.g. @acme/contracts)',
+    )
+    .option(
+      '--dir <path>',
+      'the library directory, relative to the current directory (default: packages/<name>)',
+    )
+    .action(async (name: string, options: { name?: string; dir?: string }) => {
+      await run.generateLibrary(name, process.cwd(), {
+        name: options.name,
+        dir: options.dir,
+        cliVersion: pkg.version,
+      });
+    });
+
+  withProjectOption(program.command('doctor'))
     .description('validate project integrity')
-    .action(async () => {
-      await runDoctor(process.cwd());
+    .action(async (options: { project?: string }) => {
+      await runDoctor(process.cwd(), { project: options.project });
     });
 
   return program;

@@ -18,6 +18,7 @@
     "dist",
     "templates",
     "template-overlays",
+    "library-template",
     "module-template",
     "module-template-awilix",
     "resource-template",

@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, join, relative, resolve, sep } from 'node:path';
 import * as clack from '@clack/prompts';
 import { detectPackageManager } from '../detect-package-manager.js';
-import { detectWorkspace, matchesWorkspaceGlobs, type Workspace } from '../detect-workspace.js';
+import { detectWorkspace, type Workspace } from '../detect-workspace.js';
 import {
   DATABASE_STRATEGIES,
   DEFAULT_PRESET,
@@ -15,6 +15,7 @@ import {
 import { PACKAGE_MANAGERS, type PackageManager } from '../package-manager.js';
 import { pnpmWorkspaceYaml, scaffoldProject } from '../scaffold.js';
 import { validateInit } from '../validate-init.js';
+import { unmatchedGlobNote } from '../workspace-notes.js';
 
 export interface InitOptions {
   /** Package name, when it should differ from the target directory's name (may be scoped). */
@@ -61,12 +62,6 @@ export function inheritPackageManager(
     };
   }
   return { packageManager: inherited };
-}
-
-/** The glob to suggest adding: the target's parent as `apps/*`, or the path itself at the root. */
-function suggestedGlob(rel: string): string {
-  const parent = dirname(rel);
-  return parent === '.' ? rel : `${parent}/*`;
 }
 
 /** Berry installs Plug'n'Play by default, which plain `node` in the image cannot run. */
@@ -116,8 +111,6 @@ export function workspaceFollowUps(
   preset: Preset = DEFAULT_PRESET,
 ): string[] {
   const notes: string[] = [];
-  const rel = relative(workspace.root, targetDir).split(sep).join('/');
-
   if (workspace.packageManager === 'pnpm') {
     notes.push(
       `No pnpm-workspace.yaml was written, because the workspace root already has one. ` +
@@ -125,16 +118,9 @@ export function workspaceFollowUps(
     );
   }
 
-  if (!matchesWorkspaceGlobs(workspace, targetDir)) {
-    const glob = suggestedGlob(rel);
-    notes.push(
-      workspace.packageManager === 'pnpm'
-        ? `"${rel}" is not matched by the packages in ${join(workspace.root, 'pnpm-workspace.yaml')}. ` +
-            `Add this under "packages:":\n\n  - '${glob}'`
-        : `"${rel}" is not matched by "workspaces" in ${join(workspace.root, 'package.json')}. ` +
-            `Add "${glob}" to it.`,
-    );
-  }
+  const globNote = unmatchedGlobNote(workspace, targetDir);
+  if (globNote) notes.push(globNote);
+
   const dockerReason = preset === 'production' ? dockerSkippedReason(workspace) : undefined;
   if (dockerReason) notes.push(dockerReason);
   return notes;
