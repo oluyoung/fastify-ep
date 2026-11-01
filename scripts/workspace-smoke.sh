@@ -97,8 +97,23 @@ fep generate module orders --project apps/billing-api
 if out=$(fep generate module orders 2>&1); then fail "generate from the workspace root must not guess a service"; fi
 echo "$out" | grep -q 'apps/users-api' || fail "the root error should list the services: $out"
 echo "$out" | grep -q -- '--project' || fail "the root error should suggest --project: $out"
-fep doctor -C apps/users-api
-(cd apps/billing-api/src && fep doctor)
+echo "$out" | grep -q 'packages/contracts' || fail "the root error should list the library: $out"
+fep doctor --strict -C apps/users-api
+(cd apps/billing-api/src && fep doctor --strict)
+fep doctor --strict -C packages/contracts
+(cd packages/contracts/src && fep doctor --strict)
+if out=$(fep generate module nope -C packages/contracts 2>&1); then fail "generate module must refuse a library"; fi
+echo "$out" | grep -q 'shared library' || fail "the library error should say what it is: $out"
+
+# A controller that imports the database client is a warning: doctor passes, doctor --strict fails.
+controller=apps/billing-api/src/modules/orders/orders.controller.ts
+cp "$controller" "$controller.bak"
+printf "import { eq } from 'drizzle-orm';\n" | cat - "$controller.bak" > "$controller"
+fep doctor -C apps/billing-api > /dev/null || fail "a warning must not fail plain doctor"
+if out=$(fep doctor --strict -C apps/billing-api 2>&1); then fail "doctor --strict must fail on a warning"; fi
+echo "$out" | grep -q 'FEP-003/no-database-in-controller' || fail "the warning should name its rule: $out"
+mv "$controller.bak" "$controller"
+fep doctor --strict -C apps/billing-api
 endgroup
 
 group "install once at the root"

@@ -116,7 +116,7 @@ jobs:
 
       - name: Doctor (fresh project)
         working-directory: ${{ runner.temp }}/harness/demo-app
-        run: fastify-ep doctor
+        run: fastify-ep doctor --strict
 
       - name: Typecheck (fresh project)
         working-directory: ${{ runner.temp }}/harness/demo-app
@@ -146,7 +146,7 @@ jobs:
 
       - name: Doctor (after generate)
         working-directory: ${{ runner.temp }}/harness/demo-app
-        run: fastify-ep doctor
+        run: fastify-ep doctor --strict
 
       - name: Typecheck (after generate)
         working-directory: ${{ runner.temp }}/harness/demo-app
@@ -266,7 +266,7 @@ jobs:
 
       - name: Doctor
         working-directory: examples/${{ matrix.example }}
-        run: node ${{ github.workspace }}/dist/cli.js doctor
+        run: node ${{ github.workspace }}/dist/cli.js doctor --strict
 
       - name: Typecheck
         working-directory: examples/${{ matrix.example }}

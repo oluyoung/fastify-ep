@@ -113,6 +113,7 @@ fastify-ep generate module <name> [--no-test] [--scope singleton|request] [-C <d
 fastify-ep generate resource <name> [--crud] [--no-test] [--scope singleton|request] [--singular <name>] [-C <dir>]
 fastify-ep generate library <name> [--name <package-name>] [--dir <path>]
 fastify-ep g <module|resource|library> ...      # g is an alias for generate
+fastify-ep doctor [--strict] [-C <dir>]
 ```
 
 - `init` — scaffold a new project. The argument is a name or a directory path
@@ -142,6 +143,43 @@ fastify-ep g <module|resource|library> ...      # g is an alias for generate
   directory and prints the dependency line to add to a service. Services import a library
   through its `dist`, so build it first.
 
+- `doctor` — check a project's integrity and architecture; see
+  [Architecture checks](#architecture-checks). It exits 1 on errors, and with `--strict` on warnings
+  too. `-C <dir>` (`--project`) picks the project or library to check.
+
+## Architecture checks
+
+`fastify-ep doctor` prints its checks in groups and ends with `N errors, M warnings`:
+
+- **Project** and **Modules** are integrity checks (manifest, Node and Fastify versions, modules
+  present and registered, health module, database and Awilix wiring). A failure is an error.
+- **Architecture** reads your source and warns when it drifts from the conventions the generators
+  follow. It compares imports only, without the TypeScript compiler, and stays silent when it
+  cannot be sure. Type-only imports never count.
+
+| Rule                                 | Warns when                                                                                                |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `FEP-001/server-boundary`            | `src/server.ts` is missing, or `src/app.ts` calls `listen()`                                              |
+| `FEP-002/cross-module-import`        | a module imports another module's controller, service or repository (its schema and table files are fine) |
+| `FEP-003/no-database-in-controller`  | a controller imports `drizzle-orm`, `postgres`, `@prisma/client` or the database folder                   |
+| `FEP-004/service-imports-controller` | a service imports a controller                                                                            |
+| `FEP-005/typebox-schemas`            | a module's `.schema.ts` does not import `@sinclair/typebox`                                               |
+
+Warnings do not fail a plain `doctor`. Run `fastify-ep doctor --strict` in CI to fail on them too.
+To keep a deliberate exception, put a comment with the rule id on the line above it:
+
+```ts
+// fastify-ep-ignore FEP-002/cross-module-import
+import { UsersService } from '../users/users.service.js';
+```
+
+Doctor notes an ignore that names no rule, an unknown rule, or silences nothing. Pointed at a shared
+library (`doctor -C packages/contracts`), it checks the library instead: the marker file, a valid
+package name, `"type": "module"`, `exports` and `files` pointing at `dist`, the `build` and
+`typecheck` scripts, and that the workspace's globs include it.
+
+<!-- TODO: the architecture specification (FEP-001 to FEP-012) lives in docs/architecture/ at the workspace root and is not published. Link it here once the live docs site exists (see TODOS.md). -->
+
 ## Workspaces and monorepos
 
 `fastify-ep` works inside pnpm, npm and Yarn workspaces. It writes only inside the directory it
@@ -160,7 +198,7 @@ pnpm install                                            # once, at the workspace
   `pnpm-workspace.yaml`; it prints the `allowBuilds` entries to merge into the root one.
 - **Several services.** Each service keeps its own `.fastify-ep.json`. `generate` and `doctor`
   find the service you are in from any subfolder, and `-C <dir>` (`--project`) picks one from the
-  workspace root.
+  workspace root. `generate module` and `generate resource` refuse a library.
 - **Libraries.** `generate library <name>` adds a plain package (a TypeBox schema, a test, built
   to `dist`) under `packages/*` or `libs/*`. Add the printed dependency line to a service, and
   build the library first: services import it through its `dist`.

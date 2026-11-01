@@ -7,6 +7,7 @@ import {
   type DatabaseStrategy,
   type DiStrategy,
 } from './manifest.js';
+import { runArchitectureChecks } from './architecture-checks.js';
 import { DATABASE_PLUGIN_PATH, DI_PLUGIN_PATH } from './scaffold.js';
 import {
   infrastructureRegistrationLine,
@@ -14,10 +15,55 @@ import {
   isModuleRegistered,
 } from './register-module.js';
 
+export const DOCTOR_GROUPS = ['Project', 'Modules', 'Architecture', 'Libraries'] as const;
+export type DoctorGroup = (typeof DOCTOR_GROUPS)[number];
+
+/**
+ * An `error` check is a broken project; a `warning` check is drift from a convention; an `info`
+ * check is a note (it always passes and is not counted).
+ */
+export type DoctorSeverity = 'error' | 'warning' | 'info';
+
 export interface DoctorCheck {
+  group: DoctorGroup;
+  severity: DoctorSeverity;
   name: string;
   pass: boolean;
   detail?: string;
+  /** The architecture rule a check enforces (`FEP-003/no-database-in-controller`). */
+  rule?: string;
+}
+
+/** What the checks build; `severity` defaults to `error`, so only warning checks spell it out. */
+type DoctorCheckInput = Omit<DoctorCheck, 'severity'> & { severity?: DoctorSeverity };
+
+export interface DoctorSummary {
+  total: number;
+  errors: number;
+  warnings: number;
+}
+
+/** Whether a run fails: on any error, and with `strict` on any warning too. */
+export function doctorFails(summary: DoctorSummary, strict: boolean): boolean {
+  return summary.errors > 0 || (strict && summary.warnings > 0);
+}
+
+/** Failed checks counted by severity; notes are not counted. */
+export function summarizeChecks(checks: DoctorCheck[]): DoctorSummary {
+  const failed = checks.filter((c) => !c.pass);
+  return {
+    total: checks.filter((c) => c.severity !== 'info').length,
+    errors: failed.filter((c) => c.severity === 'error').length,
+    warnings: failed.filter((c) => c.severity === 'warning').length,
+  };
+}
+
+/** The checks under each group, in `DOCTOR_GROUPS` order; empty groups are left out. */
+export function groupChecks(checks: DoctorCheck[]): Array<[DoctorGroup, DoctorCheck[]]> {
+  return DOCTOR_GROUPS.map((group): [DoctorGroup, DoctorCheck[]] => [
+    group,
+    checks.filter((c) => c.group === group),
+  ]).filter(([, inGroup]) => inGroup.length > 0);
 }
 
 export const MIN_NODE_MAJOR = 22;
@@ -66,11 +112,16 @@ function fastifyMajorVersion(range: string): number {
 }
 
 export function runDoctorChecks(cwd: string): DoctorCheck[] {
-  const checks: DoctorCheck[] = [];
+  return collectChecks(cwd).map((c) => ({ severity: 'error', ...c }));
+}
+
+function collectChecks(cwd: string): DoctorCheckInput[] {
+  const checks: DoctorCheckInput[] = [];
 
   const manifestPath = join(cwd, '.fastify-ep.json');
   const isFastifyEpProject = existsSync(manifestPath);
   checks.push({
+    group: 'Project',
     name: 'valid fastify-ep project',
     pass: isFastifyEpProject,
     detail: isFastifyEpProject
@@ -80,6 +131,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
 
   const nodeMajor = nodeMajorVersion(process.version);
   checks.push({
+    group: 'Project',
     name: 'supported Node version',
     pass: nodeMajor >= MIN_NODE_MAJOR,
     detail:
@@ -105,6 +157,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
   const fastifyMajor = fastifyRange ? fastifyMajorVersion(fastifyRange) : NaN;
   const fastifySupported = fastifyMajor === SUPPORTED_FASTIFY_MAJOR;
   checks.push({
+    group: 'Project',
     name: 'supported Fastify version',
     pass: fastifySupported,
     detail: fastifySupported
@@ -119,6 +172,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
   let di: DiStrategy = 'native';
   if (!isFastifyEpProject) {
     checks.push({
+      group: 'Project',
       name: 'manifest schema valid',
       pass: false,
       detail: 'skipped — no manifest to validate.',
@@ -129,7 +183,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
       manifestModules = manifest.modules;
       database = manifest.architecture.database;
       di = manifest.architecture.di;
-      checks.push({ name: 'manifest schema valid', pass: true });
+      checks.push({ group: 'Project', name: 'manifest schema valid', pass: true });
     } catch (err) {
       const detail =
         err instanceof LegacyManifestError || err instanceof InvalidManifestError
@@ -137,7 +191,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
           : err instanceof Error
             ? err.message
             : String(err);
-      checks.push({ name: 'manifest schema valid', pass: false, detail });
+      checks.push({ group: 'Project', name: 'manifest schema valid', pass: false, detail });
     }
   }
 
@@ -146,11 +200,13 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
 
   if (manifestModules === undefined) {
     checks.push({
+      group: 'Modules',
       name: 'all tracked modules exist',
       pass: false,
       detail: 'skipped — manifest could not be read.',
     });
     checks.push({
+      group: 'Modules',
       name: 'all generated modules registered',
       pass: false,
       detail: 'skipped — manifest could not be read.',
@@ -160,6 +216,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
       (name) => !existsSync(join(cwd, 'src', 'modules', name, `${name}.module.ts`)),
     );
     checks.push({
+      group: 'Modules',
       name: 'all tracked modules exist',
       pass: missingModules.length === 0,
       detail:
@@ -170,6 +227,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
       (name) => !appTsContent || !isModuleRegistered(appTsContent, name),
     );
     checks.push({
+      group: 'Modules',
       name: 'all generated modules registered',
       pass: unregisteredModules.length === 0,
       detail: !appTsContent
@@ -196,11 +254,17 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
       tsconfigDetail = `"${tsconfigPath}" is not valid JSON.`;
     }
   }
-  checks.push({ name: 'TypeScript strict mode enabled', pass: strictMode, detail: tsconfigDetail });
+  checks.push({
+    group: 'Project',
+    name: 'TypeScript strict mode enabled',
+    pass: strictMode,
+    detail: tsconfigDetail,
+  });
 
   const envConfigPath = join(cwd, 'src', 'config', 'env.ts');
   const hasEnvConfig = existsSync(envConfigPath);
   checks.push({
+    group: 'Project',
     name: 'environment configuration present',
     pass: hasEnvConfig,
     detail: hasEnvConfig ? undefined : `"${envConfigPath}" not found.`,
@@ -213,6 +277,7 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
   const healthRegistered = !!appTsContent && isModuleRegistered(appTsContent, 'health');
   const healthPresent = missingHealthFiles.length === 0 && healthRegistered;
   checks.push({
+    group: 'Modules',
     name: 'health module present',
     pass: healthPresent,
     detail: healthPresent
@@ -235,6 +300,10 @@ export function runDoctorChecks(cwd: string): DoctorCheck[] {
     checks.push(...runAwilixChecks(cwd, dependencies, appTsContent, database));
   }
 
+  if (manifestModules !== undefined) {
+    checks.push(...runArchitectureChecks(cwd));
+  }
+
   return checks;
 }
 
@@ -243,11 +312,12 @@ function runAwilixChecks(
   dependencies: Record<string, string>,
   appTsContent: string | undefined,
   database: DatabaseStrategy,
-): DoctorCheck[] {
-  const checks: DoctorCheck[] = [];
+): DoctorCheckInput[] {
+  const checks: DoctorCheckInput[] = [];
 
   const missingDeps = AWILIX_DEPENDENCIES.filter((name) => !dependencies[name]);
   checks.push({
+    group: 'Project',
     name: 'awilix dependencies declared',
     pass: missingDeps.length === 0,
     detail:
@@ -266,6 +336,7 @@ function runAwilixChecks(
     appTsContent.indexOf(infrastructureRegistrationLine(DATABASE_PLUGIN_PATH)) <
       appTsContent.indexOf(infrastructureRegistrationLine(DI_PLUGIN_PATH));
   checks.push({
+    group: 'Project',
     name: 'DI container plugin present and registered',
     pass: pluginExists && pluginRegistered && orderedAfterDatabase,
     detail:
@@ -288,11 +359,12 @@ function runDatabaseChecks(
   database: Exclude<DatabaseStrategy, 'none'>,
   dependencies: Record<string, string>,
   appTsContent: string | undefined,
-): DoctorCheck[] {
-  const checks: DoctorCheck[] = [];
+): DoctorCheckInput[] {
+  const checks: DoctorCheckInput[] = [];
 
   const missingDeps = DATABASE_DEPENDENCIES[database].filter((name) => !dependencies[name]);
   checks.push({
+    group: 'Project',
     name: `${database} dependencies declared`,
     pass: missingDeps.length === 0,
     detail:
@@ -305,6 +377,7 @@ function runDatabaseChecks(
     (file) => !existsSync(join(cwd, file)),
   );
   checks.push({
+    group: 'Project',
     name: `${database} configuration present`,
     pass: missingConfig.length === 0,
     detail: missingConfig.length === 0 ? undefined : `missing: ${missingConfig.join(', ')}.`,
@@ -314,6 +387,7 @@ function runDatabaseChecks(
   const pluginRegistered =
     !!appTsContent && isInfrastructureRegistered(appTsContent, DATABASE_PLUGIN_PATH);
   checks.push({
+    group: 'Project',
     name: 'database plugin present and registered',
     pass: pluginExists && pluginRegistered,
     detail:
@@ -329,6 +403,7 @@ function runDatabaseChecks(
   const hasDatabaseUrl =
     existsSync(envConfigPath) && readFileSync(envConfigPath, 'utf8').includes('DATABASE_URL');
   checks.push({
+    group: 'Project',
     name: 'DATABASE_URL in environment schema',
     pass: hasDatabaseUrl,
     detail: hasDatabaseUrl ? undefined : '"DATABASE_URL" is not declared in src/config/env.ts.',
@@ -337,6 +412,7 @@ function runDatabaseChecks(
   if (database === 'prisma') {
     const nodeOk = prismaSupportsNode(process.version);
     checks.push({
+      group: 'Project',
       name: 'Node version supported by Prisma',
       pass: nodeOk,
       detail: nodeOk

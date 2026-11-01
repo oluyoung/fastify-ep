@@ -5,7 +5,8 @@ function setup() {
   const generateModule = vi.fn(async () => {});
   const generateResource = vi.fn(async () => {});
   const generateLibrary = vi.fn(async () => {});
-  const program = createProgram({ generateModule, generateResource, generateLibrary });
+  const doctor = vi.fn(async () => {});
+  const program = createProgram({ generateModule, generateResource, generateLibrary, doctor });
   // Throw instead of exiting, and keep usage errors out of the test output.
   program.exitOverride();
   program.configureOutput({ writeOut: () => {}, writeErr: () => {} });
@@ -18,7 +19,7 @@ function setup() {
     }
   }
   const parse = (...args: string[]) => program.parseAsync(['node', 'fastify-ep', ...args]);
-  return { generateModule, generateResource, generateLibrary, parse, program };
+  return { generateModule, generateResource, generateLibrary, doctor, parse, program };
 }
 
 describe('generate alias', () => {
@@ -190,5 +191,22 @@ describe('generate library', () => {
       process.cwd(),
       expect.objectContaining({ name: undefined, dir: undefined }),
     );
+  });
+});
+
+describe('doctor options', () => {
+  it('passes --strict and --project through', async () => {
+    const { doctor, parse } = setup();
+    await parse('doctor', '--strict', '-C', 'apps/users-api');
+    expect(doctor).toHaveBeenCalledWith(process.cwd(), {
+      project: 'apps/users-api',
+      strict: true,
+    });
+  });
+
+  it('is not strict by default', async () => {
+    const { doctor, parse } = setup();
+    await parse('doctor');
+    expect(doctor).toHaveBeenCalledWith(process.cwd(), { project: undefined, strict: undefined });
   });
 });

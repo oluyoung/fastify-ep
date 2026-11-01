@@ -4,15 +4,14 @@ import { fileURLToPath } from 'node:url';
 import validateNpmPackageName from 'validate-npm-package-name';
 import { toPascalCase } from './case.js';
 import { detectWorkspace, type Workspace } from './detect-workspace.js';
-import { findWorkspaceProjects } from './find-project.js';
+import { findWorkspaceProjects, LIBRARY_MARKER } from './find-project.js';
 import { renderTemplate } from './template-engine.js';
 import { validateName } from './validate-name.js';
 import { unmatchedGlobNote } from './workspace-notes.js';
 
 const LIBRARY_TEMPLATE_DIR = fileURLToPath(new URL('../library-template', import.meta.url));
 
-/** Written into every library so tools can tell it from a service (`.fastify-ep.json`). */
-export const LIBRARY_MARKER = '.fastify-ep-library.json';
+export { LIBRARY_MARKER };
 
 export class LibraryGenerationError extends Error {
   constructor(message: string) {
