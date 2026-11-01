@@ -1,6 +1,6 @@
 {
   "name": "fastify-ep",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Scaffolds and keeps scaffolding a domain-driven module structure on native Fastify, without a DI runtime.",
   "type": "module",
   "repository": {

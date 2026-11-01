@@ -4,6 +4,46 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
+## [0.8.0] — Architecture Governance
+
+`doctor` grows from an integrity check into optional architecture validation. Generated projects
+are unchanged: the output of `init` and every generator is identical to 0.7.0, and the new checks
+pass on everything the CLI generates.
+
+### Added
+
+- `doctor` groups its checks (Project, Modules, Architecture, Libraries) and ends with
+  `N errors, M warnings`. Checks have a severity: an error fails the run as before; a warning is
+  drift from a convention and does not.
+- Five architecture rules, all warnings: `FEP-001/server-boundary`, `FEP-002/cross-module-import`,
+  `FEP-003/no-database-in-controller`, `FEP-004/service-imports-controller` and
+  `FEP-005/typebox-schemas`. They read import statements with a small built-in scanner (no
+  TypeScript compiler, no path-alias resolution); type-only imports never count, and a rule that
+  cannot be sure stays silent.
+- `doctor --strict` exits 1 on warnings as well as errors, for CI.
+- `// fastify-ep-ignore <rule-id>` on the line above a finding silences that rule there. Doctor
+  prints a note for an ignore that names no rule, an unknown rule, or silences nothing, and for a
+  file it could not read. Notes do not count toward the totals.
+- `doctor` checks shared libraries made by `generate library`: `doctor -C packages/contracts`, or
+  from inside the library, validates the marker file, the package name, `type: module`, `exports`
+  and `files` pointing at `dist`, the `build` and `typecheck` scripts, and that the workspace's
+  package globs include the library (the failure prints the glob to add).
+- `-C, --project` accepts a library directory. `generate module` and `generate resource` refuse a
+  library with a clear message, and the workspace-root "no service found" error also lists the
+  libraries.
+- A drift test scaffolds every preset, DI and database combination, runs `generate module` and
+  `generate resource --crud` on each, and requires a clean `doctor` after every step; the committed
+  examples are held to the same bar. CI runs `doctor --strict` on fresh projects, projects after
+  `generate`, the examples and the workspace fixture.
+
+### Changed
+
+- `doctor` output is grouped under headings. A passing run still ends with `All N checks passed.`;
+  a run with findings ends with `N errors, M warnings (of T checks).`. Existing checks keep their
+  names and remain errors, so the exit code for a broken project does not change.
+- `doctor` now runs the architecture rules on every project it can read the manifest of. They are
+  warnings, so existing projects keep passing a plain `doctor`.
+
 ## [0.7.0] — Workspace Support
 
 Projects can live inside a pnpm, npm or Yarn workspace. Outside a workspace nothing changes: the

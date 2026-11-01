@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { Command } from 'commander';
-import { runDoctor } from './commands/doctor.js';
+import { runDoctor, type DoctorCommandOptions } from './commands/doctor.js';
 import {
   runGenerateLibrary,
   runGenerateModule,
@@ -42,6 +42,7 @@ export interface ProgramRunners {
     cwd: string,
     options: GenerateLibraryCommandOptions,
   ) => Promise<void>;
+  doctor: (cwd: string, options: DoctorCommandOptions) => Promise<void>;
 }
 
 export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
@@ -49,6 +50,7 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
     generateModule: runGenerateModule,
     generateResource: runGenerateResource,
     generateLibrary: runGenerateLibrary,
+    doctor: runDoctor,
     ...runners,
   };
   const program = new Command();
@@ -201,9 +203,10 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
     });
 
   withProjectOption(program.command('doctor'))
-    .description('validate project integrity')
-    .action(async (options: { project?: string }) => {
-      await runDoctor(process.cwd(), { project: options.project });
+    .description('validate project integrity and architecture')
+    .option('--strict', 'exit with an error on warnings too, for CI')
+    .action(async (options: { project?: string; strict?: boolean }) => {
+      await run.doctor(process.cwd(), { project: options.project, strict: options.strict });
     });
 
   return program;

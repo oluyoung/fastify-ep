@@ -2,7 +2,14 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { prismaSupportsNode, runDoctorChecks } from './doctor.js';
+import {
+  doctorFails,
+  groupChecks,
+  prismaSupportsNode,
+  runDoctorChecks,
+  summarizeChecks,
+  type DoctorCheck,
+} from './doctor.js';
 
 let projectDir: string;
 
@@ -47,8 +54,13 @@ function makeValidProject(): string {
     'health.service.ts',
     'health.schema.ts',
   ]) {
-    writeFileSync(join(healthDir, file), '// stub\n');
+    const content = file.endsWith('.schema.ts')
+      ? "import { Type } from '@sinclair/typebox';\n"
+      : '// stub\n';
+    writeFileSync(join(healthDir, file), content);
   }
+
+  writeFileSync(join(dir, 'src', 'server.ts'), '// entry point\n');
 
   writeFileSync(
     join(dir, 'src', 'app.ts'),
@@ -174,7 +186,7 @@ function makeDatabaseProject(database: 'drizzle' | 'prisma'): string {
 describe('runDoctorChecks for database projects', () => {
   it('adds no database checks when the strategy is none', () => {
     projectDir = makeValidProject();
-    expect(runDoctorChecks(projectDir)).toHaveLength(9);
+    expect(runDoctorChecks(projectDir).filter((c) => c.group !== 'Architecture')).toHaveLength(9);
   });
 
   it.each(['drizzle', 'prisma'] as const)(
@@ -336,5 +348,106 @@ describe('prismaSupportsNode', () => {
     ['garbage', false],
   ])('%s -> %s', (version, expected) => {
     expect(prismaSupportsNode(version)).toBe(expected);
+  });
+});
+
+describe('check groups and severity', () => {
+  it('makes project and module checks errors and architecture checks warnings', () => {
+    projectDir = makeValidProject();
+    const checks = runDoctorChecks(projectDir);
+    for (const c of checks) {
+      const architecture = c.group === 'Architecture';
+      expect(c.severity, c.name).toBe(architecture ? 'warning' : 'error');
+      expect(['Project', 'Modules', 'Architecture']).toContain(c.group);
+    }
+  });
+
+  it('runs the architecture checks only when the manifest could be read', () => {
+    projectDir = makeValidProject();
+    unlinkSync(join(projectDir, '.fastify-ep.json'));
+    expect(runDoctorChecks(projectDir).some((c) => c.group === 'Architecture')).toBe(false);
+  });
+
+  it.each([
+    ['valid fastify-ep project', 'Project'],
+    ['manifest schema valid', 'Project'],
+    ['all tracked modules exist', 'Modules'],
+    ['all generated modules registered', 'Modules'],
+    ['health module present', 'Modules'],
+  ])('groups "%s" under %s', (name, group) => {
+    projectDir = makeValidProject();
+    expect(check(name, runDoctorChecks(projectDir)).group).toBe(group);
+  });
+
+  it('keeps the group even when a check is skipped', () => {
+    projectDir = makeValidProject();
+    unlinkSync(join(projectDir, '.fastify-ep.json'));
+    const checks = runDoctorChecks(projectDir);
+    expect(check('manifest schema valid', checks).group).toBe('Project');
+    expect(check('all tracked modules exist', checks).group).toBe('Modules');
+  });
+});
+
+function fake(group: DoctorCheck['group'], severity: DoctorCheck['severity'], pass: boolean) {
+  return { group, severity, name: `${group} ${severity} ${pass}`, pass } satisfies DoctorCheck;
+}
+
+describe('summarizeChecks', () => {
+  it('counts only failed checks, by severity', () => {
+    const checks = [
+      fake('Project', 'error', true),
+      fake('Project', 'error', false),
+      fake('Modules', 'error', false),
+      fake('Architecture', 'warning', false),
+      fake('Architecture', 'warning', true),
+    ];
+    expect(summarizeChecks(checks)).toEqual({ total: 5, errors: 2, warnings: 1 });
+  });
+
+  it('reports no errors or warnings when everything passes', () => {
+    expect(summarizeChecks([fake('Project', 'error', true)])).toEqual({
+      total: 1,
+      errors: 0,
+      warnings: 0,
+    });
+  });
+});
+
+describe('groupChecks', () => {
+  it('orders groups as documented and leaves empty ones out', () => {
+    const checks = [
+      fake('Architecture', 'warning', true),
+      fake('Modules', 'error', true),
+      fake('Project', 'error', true),
+      fake('Project', 'error', false),
+    ];
+    const grouped = groupChecks(checks);
+    expect(grouped.map(([group]) => group)).toEqual(['Project', 'Modules', 'Architecture']);
+    expect(grouped[0][1]).toHaveLength(2);
+  });
+});
+
+describe('info checks', () => {
+  it('are shown in their group but are not counted', () => {
+    const note: DoctorCheck = { group: 'Architecture', severity: 'info', name: 'note', pass: true };
+    const checks = [fake('Project', 'error', true), note];
+    expect(summarizeChecks(checks)).toEqual({ total: 1, errors: 0, warnings: 0 });
+    expect(groupChecks(checks).map(([group]) => group)).toEqual(['Project', 'Architecture']);
+  });
+});
+
+describe('doctorFails', () => {
+  const summary = (errors: number, warnings: number) => ({ total: 10, errors, warnings });
+
+  it.each([
+    [0, 0, false, false],
+    [0, 0, true, false],
+    [1, 0, false, true],
+    [1, 0, true, true],
+    [0, 2, false, false],
+    [0, 2, true, true],
+    [1, 2, false, true],
+  ])('%i errors, %i warnings, strict %s -> fails %s', (errors, warnings, strict, fails) => {
+    expect(doctorFails(summary(errors, warnings), strict)).toBe(fails);
   });
 });
