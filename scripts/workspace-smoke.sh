@@ -116,6 +116,33 @@ mv "$controller.bak" "$controller"
 fep doctor --strict -C apps/billing-api
 endgroup
 
+group "upgrade projects an earlier version created"
+# Make both services and the library look like they were made by 0.7.0.
+for file in apps/users-api/.fastify-ep.json apps/billing-api/.fastify-ep.json packages/contracts/.fastify-ep-library.json; do
+  sed -i.bak 's/"fastifyEpVersion": "[^"]*"/"fastifyEpVersion": "0.7.0"/' "$file" && rm "$file.bak"
+done
+cli_version=$(fep --version)
+fep doctor -C apps/billing-api > /dev/null || fail "a stale project must only warn in plain doctor"
+if out=$(fep doctor --strict -C apps/billing-api 2>&1); then fail "doctor --strict must fail on a stale project"; fi
+echo "$out" | grep -q 'fastify-ep upgrade' || fail "the stale warning should say how to fix it: $out"
+before=$(cat apps/billing-api/.fastify-ep.json)
+fep upgrade --dry-run -C apps/billing-api
+[ "$(cat apps/billing-api/.fastify-ep.json)" = "$before" ] || fail "upgrade --dry-run wrote to the manifest"
+fep upgrade -C apps/billing-api
+(cd apps/users-api/src && fep upgrade)
+fep upgrade -C packages/contracts
+fep upgrade -C apps/billing-api | grep -q 'up to date' || fail "a second upgrade should be a no-op"
+grep -q "\"fastifyEpVersion\": \"$cli_version\"" packages/contracts/.fastify-ep-library.json || fail "the library marker should be at $cli_version"
+for dir in apps/users-api apps/billing-api packages/contracts; do
+  fep doctor --strict -C "$dir"
+  fep doctor --strict --json -C "$dir" | node -e "
+    const r = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+    if (r.format !== 1 || r.ok !== true) { console.error('doctor --json not ok', r.summary); process.exit(1); }
+  "
+done
+if out=$(fep upgrade 2>&1); then fail "upgrade from the workspace root must not guess a service"; fi
+endgroup
+
 group "install once at the root"
 pmx install
 endgroup

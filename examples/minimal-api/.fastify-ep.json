@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 2,
-  "fastifyEpVersion": "0.8.0",
+  "schemaVersion": 3,
+  "fastifyEpVersion": "0.9.0",
+  "architectureVersion": 1,
   "architecture": {
     "schema": "typebox",
     "di": "native",
@@ -11,5 +12,37 @@
     "health",
     "orders",
     "users"
-  ]
+  ],
+  "files": {
+    ".gitignore": "sha256:45e7a2f072c7b060c473fe609e6a85e9da66e4d287270c9694f5319f480bf67a",
+    "src/app.ts": "sha256:428059b1dff5729877b5156194e81a2ee60d94797fb0ae09b5ea60f7fe1c5a88",
+    "src/config/env.ts": "sha256:33e8966602aed8b32524c54645bcde0bf15b8f9469451c47274193cb58c222a5",
+    "src/errors/app-error.ts": "sha256:2778d6d6219cfb0d2aea39fb70f17db59c9df3e2b96eba9ebec95510d68d9c62",
+    "src/errors/error-handler.test.ts": "sha256:6a450ddbc4d61c93b5fc219427ffe1911c5c9c64ef230a769c4ae0d73f5819d7",
+    "src/errors/error-handler.ts": "sha256:140fbc94ac09f8cf4a80584919a616f5c53181f17ddebbd05847d61cf05c9656",
+    "src/errors/error-response.schema.ts": "sha256:8dc4d163609e0b1172bee5ba7ee3f9f5845079fc64d687af62364cd2de7b3458",
+    "src/lifecycle/shutdown.test.ts": "sha256:a2c2cc5b57da534f37cc7d061fb9bbfe302d16bc83c5508888298755ff7c3476",
+    "src/lifecycle/shutdown.ts": "sha256:37fe98fa87db3ba6ed19a3e7cadb2cc3270d0e75eed7dcbddd2c3ed2dc281215",
+    "src/modules/health/health.controller.ts": "sha256:3a53f2ad9ffb1fd5cb5f496dcb4dd45e586d369dcd474af93a713d0175b09b74",
+    "src/modules/health/health.module.ts": "sha256:5f8c6741a99306f52d98cbabb5227562b4821348e5ad55b7a0a4f21df752a738",
+    "src/modules/health/health.ready.test.ts": "sha256:8d6c4fa0e77b58b06b8ae4a09c899c824253a82df771bfb8ffb70c98383fca91",
+    "src/modules/health/health.schema.ts": "sha256:67950ce9afbb6730f7669f8622ecfc7e447c241decdb5d415aac614c7e4783d6",
+    "src/modules/health/health.service.ts": "sha256:7a23ef9be393e7b8aea29ece9c028d5616e44a6603e2f1c0ddec0b4f987dc94b",
+    "src/modules/health/health.test.ts": "sha256:7da1784b02b880f482f0e7327b9fb40489fe7af61a22004782998036f7e2d2df",
+    "src/modules/orders/orders.controller.ts": "sha256:41204d098a76695ce4e67b41c9fe2a61430e80c09617f3ae8aa0eb9e8862c4e4",
+    "src/modules/orders/orders.module.ts": "sha256:a03b1bbb3ce34c0034b46a36eac73d5af174a314a9d92171105d42acb4c0d8a7",
+    "src/modules/orders/orders.schema.ts": "sha256:d0413862ef36c6f7b69e14573fc986ca2eb1004616b5b7eb8f74169d750d9d37",
+    "src/modules/orders/orders.service.ts": "sha256:e69850b41d372c9b17c953f7b18fbf352310ce405afa5ff7aa08a09ee5c1d58b",
+    "src/modules/orders/orders.test.ts": "sha256:24b0b66982c4a53dbc3880cad23ab46f33a048da3789fd35d6dae18bd95787a9",
+    "src/modules/users/users.controller.ts": "sha256:7d15588e0a0a46d1778997e4ea784bbca9c78707566aed8b00857f74cbb5b3b9",
+    "src/modules/users/users.module.ts": "sha256:5f199422c5b7c263059489d66955968ded7c65c50e4cf94feb267aca209cfd88",
+    "src/modules/users/users.repository.ts": "sha256:aeffeec68218c51b3981283da3db35ab9690a6992ea7316e44d50959b51406d5",
+    "src/modules/users/users.schema.ts": "sha256:4d8b953f83dca4162ef419e529d890f48ed0ada83ed8d4e27fc9dd7204d067fb",
+    "src/modules/users/users.service.ts": "sha256:c0e71a791f689df90886462a65ce2b368514792daea9755b4b376f9c95e8fb9b",
+    "src/modules/users/users.test.ts": "sha256:d326e330904bee2b03ae09ec96ab7b11ee4294fb0cc181c89656096bb37646f9",
+    "src/server.ts": "sha256:ea2c3be50a0ad8849a58c8d3475c970646acd5568c6bbd91a0acae60f6a3a666",
+    "tsconfig.build.json": "sha256:bf9b1687801d968a8dade0a3dd4e3cb1bf6df175cfa9a587213815a66a6d91da",
+    "tsconfig.json": "sha256:419bebf3878e65fd8c926bc343812e4084e6baac7e0f6afbffaa6d7465dde6d8",
+    "vitest.config.ts": "sha256:ab62155f398c51eab4e82c644ad2c943e15fe60e4ee983ecaa916f4567d93e9f"
+  }
 }

@@ -1,11 +1,13 @@
 import * as clack from '@clack/prompts';
 import {
+  buildDoctorReport,
   doctorFails,
   groupChecks,
   runDoctorChecks,
   summarizeChecks,
   type DoctorCheck,
 } from '../doctor.js';
+import { resolveProject } from '../find-project.js';
 import { runLibraryChecks } from '../library-doctor.js';
 import { resolveTargetOrExit } from './project.js';
 
@@ -27,14 +29,38 @@ export interface DoctorCommandOptions {
   project?: string;
   /** Fail on warnings as well as errors. */
   strict?: boolean;
+  /** Print the result as JSON (`format: 1`) instead of the report. */
+  json?: boolean;
+  /** The running CLI's version, for the "created or migrated by this version" check. */
+  cliVersion?: string;
+}
+
+async function runDoctorJson(cwd: string, options: DoctorCommandOptions): Promise<void> {
+  const target = resolveProject(cwd, options.project);
+  if ('error' in target) {
+    process.stdout.write(`${JSON.stringify({ format: 1, error: target.error }, null, 2)}\n`);
+    process.exit(1);
+  }
+  const { cliVersion } = options;
+  const checks =
+    target.kind === 'library'
+      ? runLibraryChecks(target.root, { cliVersion })
+      : runDoctorChecks(target.root, { cliVersion });
+  const report = buildDoctorReport(target.root, target.kind, checks, options.strict === true);
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  if (!report.ok) process.exit(1);
 }
 
 export async function runDoctor(cwd: string, options: DoctorCommandOptions = {}): Promise<void> {
+  if (options.json) return runDoctorJson(cwd, options);
   clack.intro('fastify-ep doctor');
 
   const target = resolveTargetOrExit(cwd, options.project);
+  const { cliVersion } = options;
   const checks =
-    target.kind === 'library' ? runLibraryChecks(target.root) : runDoctorChecks(target.root);
+    target.kind === 'library'
+      ? runLibraryChecks(target.root, { cliVersion })
+      : runDoctorChecks(target.root, { cliVersion });
   for (const [group, inGroup] of groupChecks(checks)) {
     clack.log.step(group);
     inGroup.forEach(logCheck);

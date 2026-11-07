@@ -113,7 +113,8 @@ fastify-ep generate module <name> [--no-test] [--scope singleton|request] [-C <d
 fastify-ep generate resource <name> [--crud] [--no-test] [--scope singleton|request] [--singular <name>] [-C <dir>]
 fastify-ep generate library <name> [--name <package-name>] [--dir <path>]
 fastify-ep g <module|resource|library> ...      # g is an alias for generate
-fastify-ep doctor [--strict] [-C <dir>]
+fastify-ep doctor [--strict] [--json] [-C <dir>]
+fastify-ep upgrade [--dry-run] [--json] [-C <dir>]
 ```
 
 - `init` — scaffold a new project. The argument is a name or a directory path
@@ -145,7 +146,26 @@ fastify-ep doctor [--strict] [-C <dir>]
 
 - `doctor` — check a project's integrity and architecture; see
   [Architecture checks](#architecture-checks). It exits 1 on errors, and with `--strict` on warnings
-  too. `-C <dir>` (`--project`) picks the project or library to check.
+  too. `-C <dir>` (`--project`) picks the project or library to check. `--json` prints the result
+  as one JSON document (`format: 1`) instead of the report.
+- `upgrade` — move a project created by an earlier version (0.6.0 or later) to the installed
+  version; see [Upgrading](#upgrading). `--dry-run` shows the plan and writes nothing.
+
+## Upgrading
+
+```sh
+fastify-ep upgrade --dry-run   # what would change; writes nothing
+fastify-ep upgrade             # apply it
+```
+
+`upgrade` runs one small, tested migration per release from the version in your `.fastify-ep.json`
+to the installed one. It only rewrites a generated file that still matches what was generated:
+anything you edited is left alone and listed under "Manual review required". The changes are
+written together and rolled back if one fails. It never runs your package manager; when
+`package.json` changed it prints the install command. `doctor` warns when a project is behind the
+installed version, and `doctor --strict` fails until it is upgraded.
+
+<!-- TODO: link docs/migrations/ and docs/cli/ (workspace root, not published) once the live docs site exists (see TODOS.md). -->
 
 ## Architecture checks
 

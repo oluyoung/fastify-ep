@@ -10,6 +10,7 @@ import {
   type GenerateResourceCommandOptions,
 } from './commands/generate.js';
 import { runInit } from './commands/init.js';
+import { runUpgrade, type UpgradeCommandOptions } from './commands/upgrade.js';
 import {
   DATABASE_STRATEGIES,
   DI_SCOPES,
@@ -43,6 +44,7 @@ export interface ProgramRunners {
     options: GenerateLibraryCommandOptions,
   ) => Promise<void>;
   doctor: (cwd: string, options: DoctorCommandOptions) => Promise<void>;
+  upgrade: (cwd: string, options: UpgradeCommandOptions) => Promise<void>;
 }
 
 export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
@@ -51,6 +53,7 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
     generateResource: runGenerateResource,
     generateLibrary: runGenerateLibrary,
     doctor: runDoctor,
+    upgrade: runUpgrade,
     ...runners,
   };
   const program = new Command();
@@ -205,8 +208,27 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
   withProjectOption(program.command('doctor'))
     .description('validate project integrity and architecture')
     .option('--strict', 'exit with an error on warnings too, for CI')
-    .action(async (options: { project?: string; strict?: boolean }) => {
-      await run.doctor(process.cwd(), { project: options.project, strict: options.strict });
+    .option('--json', 'print the result as JSON')
+    .action(async (options: { project?: string; strict?: boolean; json?: boolean }) => {
+      await run.doctor(process.cwd(), {
+        project: options.project,
+        strict: options.strict,
+        json: options.json,
+        cliVersion: pkg.version,
+      });
+    });
+
+  withProjectOption(program.command('upgrade'))
+    .description('migrate a project created by an earlier version of fastify-ep')
+    .option('--dry-run', 'show what would change without writing anything')
+    .option('--json', 'print the result as JSON')
+    .action(async (options: { project?: string; dryRun?: boolean; json?: boolean }) => {
+      await run.upgrade(process.cwd(), {
+        project: options.project,
+        dryRun: options.dryRun,
+        json: options.json,
+        cliVersion: pkg.version,
+      });
     });
 
   return program;

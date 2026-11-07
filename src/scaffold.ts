@@ -1,7 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { recordFiles, writeManifest } from './file-hashes.js';
 import {
+  ARCHITECTURE_VERSION,
   DEFAULT_PRESET,
   Manifest,
   MANIFEST_SCHEMA_VERSION,
@@ -108,26 +110,34 @@ function destinationName(name: string, isRoot: boolean): string {
   return isRoot && name === 'gitignore' ? '.gitignore' : name;
 }
 
-/** Copies `srcDir` over `destDir`. A top-level `package.json` already in `destDir` is merged, not replaced. */
+/**
+ * Copies `srcDir` over `destDir`. A top-level `package.json` already in `destDir` is merged, not
+ * replaced. Every file written is added to `written` as a `/`-separated path relative to the project
+ * root, except `package.json`, which migrations patch by key and the manifest never hashes.
+ */
 function copyTemplateDir(
   srcDir: string,
   destDir: string,
   vars: Record<string, string>,
-  isRoot = true,
+  written: Set<string>,
+  relDir = '',
 ): void {
+  const isRoot = relDir === '';
   mkdirSync(destDir, { recursive: true });
   for (const entry of readdirSync(srcDir, { withFileTypes: true })) {
+    const name = destinationName(entry.name, isRoot);
     const srcPath = join(srcDir, entry.name);
-    const destPath = join(destDir, destinationName(entry.name, isRoot));
+    const destPath = join(destDir, name);
     if (entry.isDirectory()) {
-      copyTemplateDir(srcPath, destPath, vars, false);
+      copyTemplateDir(srcPath, destPath, vars, written, `${relDir}${name}/`);
       continue;
     }
     const content = renderTemplate(readFileSync(srcPath, 'utf8'), vars);
-    if (isRoot && entry.name === 'package.json' && existsSync(destPath)) {
-      writeFileSync(destPath, mergePackageJson(destPath, content));
+    if (isRoot && entry.name === 'package.json') {
+      writeFileSync(destPath, existsSync(destPath) ? mergePackageJson(destPath, content) : content);
     } else {
       writeFileSync(destPath, content);
+      written.add(`${relDir}${name}`);
     }
   }
 }
@@ -226,6 +236,7 @@ export function scaffoldProject({
   const overlayDir = database === 'none' ? undefined : join(overlaysDir, database);
   const diOverlayDir = di === 'native' ? undefined : join(overlaysDir, 'di', di);
   const writtenTopLevel = new Set<string>(['.fastify-ep.json', 'pnpm-workspace.yaml']);
+  const generatedFiles = new Set<string>();
 
   try {
     for (const dir of [...presetDirs, ...(dockerDir ? [dockerDir] : [])]) {
@@ -242,21 +253,21 @@ export function scaffoldProject({
     }
 
     readdirSync(templatesDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
-    copyTemplateDir(templatesDir, targetDir, vars);
+    copyTemplateDir(templatesDir, targetDir, vars, generatedFiles);
 
     for (const dir of [...presetDirs, ...(dockerDir ? [dockerDir] : [])]) {
       readdirSync(dir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
-      copyTemplateDir(dir, targetDir, vars);
+      copyTemplateDir(dir, targetDir, vars, generatedFiles);
     }
 
     if (overlayDir !== undefined) {
       readdirSync(overlayDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
-      copyTemplateDir(overlayDir, targetDir, vars);
+      copyTemplateDir(overlayDir, targetDir, vars, generatedFiles);
     }
 
     if (diOverlayDir !== undefined) {
       readdirSync(diOverlayDir).forEach((name) => writtenTopLevel.add(destinationName(name, true)));
-      copyTemplateDir(diOverlayDir, targetDir, vars);
+      copyTemplateDir(diOverlayDir, targetDir, vars, generatedFiles);
       if (database !== 'none') {
         registerDatabaseInContainer(targetDir);
       }
@@ -279,11 +290,13 @@ export function scaffoldProject({
 
     if (packageManager === 'pnpm' && !workspace) {
       writeFileSync(join(targetDir, 'pnpm-workspace.yaml'), pnpmWorkspaceYaml(database));
+      generatedFiles.add('pnpm-workspace.yaml');
     }
 
     const manifest: Manifest = {
       schemaVersion: MANIFEST_SCHEMA_VERSION,
       fastifyEpVersion: cliVersion,
+      architectureVersion: ARCHITECTURE_VERSION,
       architecture: {
         schema: 'typebox',
         di,
@@ -291,8 +304,10 @@ export function scaffoldProject({
         ...(preset === DEFAULT_PRESET ? {} : { preset }),
       },
       modules: ['health'],
+      // Hashed last, after every edit above, so they describe the files as the user receives them.
+      files: recordFiles(targetDir, generatedFiles),
     };
-    writeFileSync(join(targetDir, '.fastify-ep.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+    writeManifest(join(targetDir, '.fastify-ep.json'), manifest);
   } catch (err) {
     if (!alreadyExisted) {
       rmSync(targetDir, { recursive: true, force: true });

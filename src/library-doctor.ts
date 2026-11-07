@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import validateNpmPackageName from 'validate-npm-package-name';
 import { detectWorkspace, matchesWorkspaceGlobs } from './detect-workspace.js';
-import type { DoctorCheck } from './doctor.js';
+import { versionCheck, type DoctorCheck, type DoctorOptions } from './doctor.js';
 import { LIBRARY_MARKER } from './find-project.js';
 import { unmatchedGlobNote } from './workspace-notes.js';
 
@@ -40,6 +40,13 @@ function markerFailure(dir: string): string | undefined {
     return `${LIBRARY_MARKER}: "fastifyEpVersion" must be a string.`;
   }
   return undefined;
+}
+
+function readMarkerVersion(dir: string): string | undefined {
+  const { value } = readJson(join(dir, LIBRARY_MARKER));
+  return isRecord(value) && typeof value.fastifyEpVersion === 'string'
+    ? value.fastifyEpVersion
+    : undefined;
 }
 
 /** Every file path an `exports` value points at, however deeply it is nested in conditions. */
@@ -95,8 +102,12 @@ function workspaceFailure(dir: string): string | undefined {
 }
 
 /** The checks for a shared library (`generate library`) at `dir`; every failure is an error. */
-export function runLibraryChecks(dir: string): DoctorCheck[] {
+export function runLibraryChecks(dir: string, options: DoctorOptions = {}): DoctorCheck[] {
   const checks = [check('library marker valid', markerFailure(dir))];
+  const markerVersion = readMarkerVersion(dir);
+  if (options.cliVersion !== undefined && markerVersion !== undefined) {
+    checks.push(versionCheck('Libraries', markerVersion, options.cliVersion));
+  }
 
   const { value: pkg, error } = readJson(join(dir, 'package.json'));
   if (error || !isRecord(pkg)) {

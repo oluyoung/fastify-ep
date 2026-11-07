@@ -6,7 +6,14 @@ function setup() {
   const generateResource = vi.fn(async () => {});
   const generateLibrary = vi.fn(async () => {});
   const doctor = vi.fn(async () => {});
-  const program = createProgram({ generateModule, generateResource, generateLibrary, doctor });
+  const upgrade = vi.fn(async () => {});
+  const program = createProgram({
+    generateModule,
+    generateResource,
+    generateLibrary,
+    doctor,
+    upgrade,
+  });
   // Throw instead of exiting, and keep usage errors out of the test output.
   program.exitOverride();
   program.configureOutput({ writeOut: () => {}, writeErr: () => {} });
@@ -19,7 +26,7 @@ function setup() {
     }
   }
   const parse = (...args: string[]) => program.parseAsync(['node', 'fastify-ep', ...args]);
-  return { generateModule, generateResource, generateLibrary, doctor, parse, program };
+  return { generateModule, generateResource, generateLibrary, doctor, upgrade, parse, program };
 }
 
 describe('generate alias', () => {
@@ -201,12 +208,51 @@ describe('doctor options', () => {
     expect(doctor).toHaveBeenCalledWith(process.cwd(), {
       project: 'apps/users-api',
       strict: true,
+      json: undefined,
+      cliVersion: expect.stringMatching(/^\d+\.\d+\.\d+/),
     });
   });
 
   it('is not strict by default', async () => {
     const { doctor, parse } = setup();
     await parse('doctor');
-    expect(doctor).toHaveBeenCalledWith(process.cwd(), { project: undefined, strict: undefined });
+    expect(doctor).toHaveBeenCalledWith(
+      process.cwd(),
+      expect.objectContaining({ project: undefined, strict: undefined, json: undefined }),
+    );
+  });
+});
+
+describe('upgrade options', () => {
+  it('passes the flags and the CLI version through', async () => {
+    const { upgrade, parse } = setup();
+
+    await parse('upgrade', '--dry-run', '--json', '-C', 'apps/users-api');
+
+    expect(upgrade).toHaveBeenCalledWith(process.cwd(), {
+      project: 'apps/users-api',
+      dryRun: true,
+      json: true,
+      cliVersion: expect.stringMatching(/^\d+\.\d+\.\d+/),
+    });
+  });
+
+  it('defaults to a real, text run', async () => {
+    const { upgrade, parse } = setup();
+
+    await parse('upgrade');
+
+    expect(upgrade).toHaveBeenCalledWith(
+      process.cwd(),
+      expect.objectContaining({ dryRun: undefined, json: undefined }),
+    );
+  });
+});
+
+describe('doctor --json', () => {
+  it('passes --json through', async () => {
+    const { doctor, parse } = setup();
+    await parse('doctor', '--json');
+    expect(doctor).toHaveBeenCalledWith(process.cwd(), expect.objectContaining({ json: true }));
   });
 });

@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { recordFiles, refreshIfPristine, writeManifest } from './file-hashes.js';
 import { readManifest, type Manifest } from './manifest.js';
 import { insertModuleRegistration } from './register-module.js';
 import { renderTemplate } from './template-engine.js';
@@ -123,10 +124,12 @@ export function generateUnit({
   }
 
   mkdirSync(moduleDir, { recursive: true });
+  const moduleFiles: string[] = [];
   for (const [suffix, templatePath] of templateFiles) {
     if (!withTests && suffix === 'test.ts') continue;
     const content = readFileSync(templatePath, 'utf8');
     writeFileSync(join(moduleDir, `${name}.${suffix}`), renderTemplate(content, vars));
+    moduleFiles.push(`src/modules/${name}/${name}.${suffix}`);
   }
 
   const appTsPath = join(targetDir, 'src', 'app.ts');
@@ -134,16 +137,23 @@ export function generateUnit({
   const written: typeof appendTargets = [];
   try {
     appTsBefore = readFileSync(appTsPath, 'utf8');
-    insertModuleRegistration(appTsPath, name);
+    refreshIfPristine(manifest, targetDir, 'src/app.ts', () =>
+      insertModuleRegistration(appTsPath, name),
+    );
 
-    for (const target of appendTargets) {
+    appends.forEach((append, i) => {
+      const target = appendTargets[i];
       const separator = target.before.endsWith('\n') ? '' : '\n';
-      writeFileSync(target.path, `${target.before}${separator}${target.text}`);
+      refreshIfPristine(manifest, targetDir, append.path, () =>
+        writeFileSync(target.path, `${target.before}${separator}${target.text}`),
+      );
       written.push(target);
-    }
+    });
 
+    // A schema 2 manifest has no `files`; `upgrade` converts it, generating does not half-convert it.
+    if (manifest.files) Object.assign(manifest.files, recordFiles(targetDir, moduleFiles));
     manifest.modules.push(name);
-    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    writeManifest(manifestPath, manifest);
   } catch (err) {
     rmSync(moduleDir, { recursive: true, force: true });
     if (appTsBefore !== undefined) writeFileSync(appTsPath, appTsBefore);
