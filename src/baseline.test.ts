@@ -246,13 +246,24 @@ describe('computeBaseline safety', () => {
     generateResource({ targetDir: dir, resourceName: 'users', crud: true });
     const { manifest } = toSchema2(dir);
     const before = snapshot(dir);
-    const tmpBefore = readdirSync(tmpdir()).filter((n) => n.startsWith('fastify-ep-baseline-'));
 
-    computeBaseline(dir, manifest);
+    // Other test files run in parallel and also make baseline temp dirs in the system temp dir, so
+    // give this call a private one and check that nothing is left in it.
+    const privateTmp = mkdtempSync(join(tmpdir(), 'fastify-ep-private-tmp-'));
+    const saved = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
+    process.env.TMPDIR = process.env.TEMP = process.env.TMP = privateTmp;
+    try {
+      computeBaseline(dir, manifest);
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
 
     expect(snapshot(dir)).toEqual(before);
-    const tmpAfter = readdirSync(tmpdir()).filter((n) => n.startsWith('fastify-ep-baseline-'));
-    expect(tmpAfter.sort()).toEqual(tmpBefore.sort());
+    expect(readdirSync(privateTmp)).toEqual([]);
+    rmSync(privateTmp, { recursive: true, force: true });
   });
 
   it('is not confused by a copy of the project elsewhere', () => {
