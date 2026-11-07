@@ -2,7 +2,12 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { InvalidManifestError, LegacyManifestError, readManifest } from './manifest.js';
+import {
+  InvalidManifestError,
+  LegacyManifestError,
+  NewerManifestError,
+  readManifest,
+} from './manifest.js';
 
 let workDir: string;
 
@@ -137,5 +142,46 @@ describe('readManifest preset', () => {
     const architecture = { schema: 'typebox', di: 'native', database: 'none' };
     expect(read({ ...architecture, preset: 'production' }).architecture.preset).toBe('production');
     expect(() => read({ ...architecture, preset: 'enterprise' })).toThrow(InvalidManifestError);
+  });
+
+  describe('schema 3', () => {
+    const hash = `sha256:${'a'.repeat(64)}`;
+    const v3 = (overrides: Record<string, unknown> = {}): string =>
+      JSON.stringify({
+        schemaVersion: 3,
+        fastifyEpVersion: '0.9.0',
+        architectureVersion: 1,
+        architecture: { schema: 'typebox', di: 'native', database: 'none' },
+        modules: ['health'],
+        files: { 'src/app.ts': hash },
+        ...overrides,
+      });
+
+    it('reads a valid v3 manifest with file hashes', () => {
+      const manifest = readManifest(writeManifest(v3()));
+
+      expect(manifest.schemaVersion).toBe(3);
+      expect(manifest.architectureVersion).toBe(1);
+      expect(manifest.files).toEqual({ 'src/app.ts': hash });
+    });
+
+    it.each([
+      ['a hash without the sha256 prefix', { files: { 'src/app.ts': 'abc' } }],
+      ['a non-string hash', { files: { 'src/app.ts': 1 } }],
+      ['a parent-directory path', { files: { '../outside.ts': hash } }],
+      ['an absolute path', { files: { '/etc/passwd': hash } }],
+      ['a backslash path', { files: { 'src\\app.ts': hash } }],
+      ['a files list instead of a map', { files: [] }],
+      ['no files', { files: undefined }],
+      ['no architectureVersion', { architectureVersion: undefined }],
+    ])('throws InvalidManifestError for %s', (_label, overrides) => {
+      expect(() => readManifest(writeManifest(v3(overrides)))).toThrow(InvalidManifestError);
+    });
+
+    it('throws NewerManifestError for a schema this version does not know', () => {
+      expect(() => readManifest(writeManifest(v3({ schemaVersion: 4 })))).toThrow(
+        NewerManifestError,
+      );
+    });
   });
 });

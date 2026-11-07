@@ -8,6 +8,8 @@ import {
   type DiStrategy,
 } from './manifest.js';
 import { runArchitectureChecks } from './architecture-checks.js';
+import type { ProjectKind } from './find-project.js';
+import { compareVersions, isVersion } from './version.js';
 import { DATABASE_PLUGIN_PATH, DI_PLUGIN_PATH } from './scaffold.js';
 import {
   infrastructureRegistrationLine,
@@ -66,6 +68,68 @@ export function groupChecks(checks: DoctorCheck[]): Array<[DoctorGroup, DoctorCh
   ]).filter(([, inGroup]) => inGroup.length > 0);
 }
 
+export interface DoctorOptions {
+  /** The running CLI's version. When given, `doctor` also checks the project was made or migrated by it. */
+  cliVersion?: string;
+}
+
+/**
+ * A warning when the project's recorded fastify-ep version differs from the CLI's: older means
+ * `fastify-ep upgrade` has migrations to offer (and fails `--strict`, which is how CI is pushed to
+ * upgrade); newer means this CLI is behind.
+ */
+export function versionCheck(
+  group: DoctorGroup,
+  projectVersion: string,
+  cliVersion: string,
+): DoctorCheck {
+  const name = 'created or migrated by this fastify-ep version';
+  const base = { group, severity: 'warning' as const, name };
+  if (!isVersion(projectVersion) || !isVersion(cliVersion)) {
+    return { ...base, pass: false, detail: `"${projectVersion}" is not a version number.` };
+  }
+  const order = compareVersions(projectVersion, cliVersion);
+  if (order === 0) return { ...base, pass: true };
+  return {
+    ...base,
+    pass: false,
+    detail:
+      order < 0
+        ? `created or last migrated by fastify-ep ${projectVersion}, this is ${cliVersion} — run "fastify-ep upgrade".`
+        : `last migrated by fastify-ep ${projectVersion}, which is newer than this ${cliVersion} — update fastify-ep.`,
+  };
+}
+
+/** The `doctor --json` document. Adding fields is compatible; removing or renaming needs a new `format`. */
+export interface DoctorReport {
+  format: 1;
+  project: string;
+  kind: ProjectKind;
+  strict: boolean;
+  /** Whether the run succeeds (exit 0), after `strict` is applied. */
+  ok: boolean;
+  checks: DoctorCheck[];
+  summary: DoctorSummary;
+}
+
+export function buildDoctorReport(
+  project: string,
+  kind: ProjectKind,
+  checks: DoctorCheck[],
+  strict: boolean,
+): DoctorReport {
+  const summary = summarizeChecks(checks);
+  return {
+    format: 1,
+    project,
+    kind,
+    strict,
+    ok: !doctorFails(summary, strict),
+    checks,
+    summary,
+  };
+}
+
 export const MIN_NODE_MAJOR = 22;
 export const SUPPORTED_FASTIFY_MAJOR = 5;
 
@@ -111,11 +175,11 @@ function fastifyMajorVersion(range: string): number {
   return match ? Number.parseInt(match[1], 10) : NaN;
 }
 
-export function runDoctorChecks(cwd: string): DoctorCheck[] {
-  return collectChecks(cwd).map((c) => ({ severity: 'error', ...c }));
+export function runDoctorChecks(cwd: string, options: DoctorOptions = {}): DoctorCheck[] {
+  return collectChecks(cwd, options).map((c) => ({ severity: 'error', ...c }));
 }
 
-function collectChecks(cwd: string): DoctorCheckInput[] {
+function collectChecks(cwd: string, options: DoctorOptions): DoctorCheckInput[] {
   const checks: DoctorCheckInput[] = [];
 
   const manifestPath = join(cwd, '.fastify-ep.json');
@@ -184,6 +248,9 @@ function collectChecks(cwd: string): DoctorCheckInput[] {
       database = manifest.architecture.database;
       di = manifest.architecture.di;
       checks.push({ group: 'Project', name: 'manifest schema valid', pass: true });
+      if (options.cliVersion !== undefined) {
+        checks.push(versionCheck('Project', manifest.fastifyEpVersion, options.cliVersion));
+      }
     } catch (err) {
       const detail =
         err instanceof LegacyManifestError || err instanceof InvalidManifestError

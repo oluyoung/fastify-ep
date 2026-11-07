@@ -4,6 +4,51 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
+## [0.9.0] — Upgrades and Stabilisation
+
+Projects created by 0.6.0 or later can move to the current conventions with `fastify-ep upgrade`,
+without recreation and without losing edits. Generated files are otherwise identical to 0.8.0.
+
+### Added
+
+- `fastify-ep upgrade [--dry-run] [--json] [-C <dir>]`. It runs versioned migrations from the
+  version in the manifest to the installed one. A dry run is the real plan and writes nothing;
+  applying is all or nothing and restores every file if a write fails. Files you edited are never
+  overwritten: they are listed under "Manual review required". It does not run your package
+  manager; it prints the install command when `package.json` changed. A second run reports "Already
+  up to date". Exit status is 0 on success (review items included) and 1 on failure.
+- Migrations for 0.6.0 to 0.6.1 (the Production rate-limit plugin answers with the project's error
+  shape; `vitest` `^2.0.5` to `^4.1.0`), 0.6.1 to 0.7.0 (`vitest` `^5.0.5`, `vite ^7.0.0`), 0.7.0 to
+  0.8.0 (nothing to change) and 0.8.0 to 0.9.0 (manifest schema 3). Changes to `package.json` touch
+  one key and only if it still holds the generated value.
+- Manifest schema 3: `.fastify-ep.json` records a `sha256` hash for every file `init`,
+  `generate module` and `generate resource` write (never `package.json`) and an
+  `architectureVersion`. `generate` keeps the hashes of `app.ts` and the database schema file in
+  step only when you had not edited them. Schema 2 manifests are still read; `generate` leaves
+  them as they are and `upgrade` converts them. For a project without hashes, `upgrade` rebuilds
+  them by regenerating the project in a temporary folder and comparing byte for byte; anything
+  that differs stays untracked and is listed for review.
+- `doctor --json` prints a single JSON document with `format: 1`. `upgrade --json` does too.
+- `doctor` warns when a project was created or last migrated by a different fastify-ep than the one
+  running ("run `fastify-ep upgrade`"). It is a warning, so `doctor --strict` fails until the
+  project is upgraded.
+- CI upgrades real projects: for each of v0.6.0, v0.6.1, v0.7.0 and v0.8.0, the release's own CLI
+  is built from its tag and generates a project; the CLI under test upgrades it, the result must
+  equal what the current CLI generates, pass `doctor --strict`, and install, typecheck, test and
+  build. The workspace smoke test also upgrades services and a library.
+
+### Changed
+
+- `init` writes manifest schema 3. A fastify-ep older than 0.9.0 cannot read it, so use 0.9.0 or
+  later across a team before generating into projects created by it.
+- Running `doctor --strict` with a newer CLI than the project's version now fails until
+  `fastify-ep upgrade` is run.
+
+### Not included
+
+- Running installs, upgrading projects older than 0.6.0, an OS matrix in CI, database-backed
+  repository tests for generated resources, a rule configuration file and import-cycle detection.
+
 ## [0.8.0] — Architecture Governance
 
 `doctor` grows from an integrity check into optional architecture validation. Generated projects

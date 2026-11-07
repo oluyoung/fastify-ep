@@ -1,12 +1,13 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runDoctorChecks } from './doctor.js';
+import { hashFile } from './file-hashes.js';
 import { generateModule } from './generate-module.js';
 import { generateResource } from './generate-resource.js';
-import { DATABASE_STRATEGIES, DI_STRATEGIES, PRESETS } from './manifest.js';
+import { DATABASE_STRATEGIES, DI_STRATEGIES, PRESETS, readManifest } from './manifest.js';
 import { scaffoldProject } from './scaffold.js';
 
 /*
@@ -29,6 +30,29 @@ function problems(projectDir: string): string[] {
       (c) =>
         `[${c.severity}] ${c.name}${c.detail ? ` — ${c.detail}` : ''}${c.rule ? ` [${c.rule}]` : ''}`,
     );
+}
+
+/** Project files the manifest deliberately does not hash. */
+const UNTRACKED = new Set(['package.json', '.fastify-ep.json']);
+
+function listFiles(dir: string, root = dir): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory()
+      ? listFiles(join(dir, entry.name), root)
+      : [relative(root, join(dir, entry.name)).split('\\').join('/')],
+  );
+}
+
+/** Hashes that no longer match the disk, and generated files the manifest does not list. */
+function hashProblems(projectDir: string): string[] {
+  const files = readManifest(join(projectDir, '.fastify-ep.json')).files ?? {};
+  const onDisk = listFiles(projectDir).filter((path) => !UNTRACKED.has(path));
+  return [
+    ...Object.entries(files)
+      .filter(([path, hash]) => hashFile(join(projectDir, path)) !== hash)
+      .map(([path]) => `stale hash: ${path}`),
+    ...onDisk.filter((path) => !(path in files)).map((path) => `not recorded: ${path}`),
+  ];
 }
 
 const combinations = PRESETS.flatMap((preset) =>
@@ -58,12 +82,15 @@ describe('generated projects pass doctor --strict', () => {
         database,
       });
       expect(problems(targetDir), 'after init').toEqual([]);
+      expect(hashProblems(targetDir), 'after init hashes').toEqual([]);
 
       generateModule({ targetDir, moduleName: 'orders' });
       expect(problems(targetDir), 'after generate module').toEqual([]);
+      expect(hashProblems(targetDir), 'after generate module hashes').toEqual([]);
 
       generateResource({ targetDir, resourceName: 'users', crud: true });
       expect(problems(targetDir), 'after generate resource --crud').toEqual([]);
+      expect(hashProblems(targetDir), 'after generate resource --crud hashes').toEqual([]);
     },
   );
 });

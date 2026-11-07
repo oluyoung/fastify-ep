@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [master]
     tags: ['v*']
   workflow_dispatch:
   schedule:
@@ -215,6 +215,38 @@ jobs:
       - name: Workspace smoke test
         run: ${{ github.workspace }}/scripts/workspace-smoke.sh ${{ matrix.pm }} "$RUNNER_TEMP/workspace-demo"
 
+  # Real projects from earlier releases: the tag's own CLI generates them, the CLI under test upgrades
+  # them, and the result must equal fresh output and install, typecheck, test and build.
+  upgrade:
+    name: upgrade from ${{ matrix.tag }} (${{ matrix.preset }}, ${{ matrix.database }}, ${{ matrix.di }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { tag: v0.6.0, preset: production, database: none, di: native }
+          - { tag: v0.6.0, preset: standard, database: drizzle, di: native }
+          - { tag: v0.6.1, preset: standard, database: none, di: native }
+          - { tag: v0.7.0, preset: production, database: drizzle, di: native }
+          - { tag: v0.8.0, preset: standard, database: none, di: awilix }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The fixtures are built from release tags.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Upgrade smoke test
+        run: ${{ github.workspace }}/scripts/upgrade-smoke.sh ${{ matrix.tag }} ${{ matrix.preset }} ${{ matrix.database }} ${{ matrix.di }} "$RUNNER_TEMP/upgrade-demo"
+
   examples:
     runs-on: ubuntu-latest
     strategy:
@@ -292,7 +324,7 @@ jobs:
         run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.database }} users
 
   publish:
-    needs: [lint-and-build, integration, workspace, examples]
+    needs: [lint-and-build, integration, workspace, upgrade, examples]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

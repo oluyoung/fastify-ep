@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { hashFile } from './file-hashes.js';
 import { scaffoldProject } from './scaffold.js';
 
 let workDir: string;
@@ -131,11 +132,73 @@ describe('scaffoldProject', () => {
     expect(buildConfig.exclude).toContain('src/**/*.test.ts');
 
     const manifest = JSON.parse(readFileSync(join(targetDir, '.fastify-ep.json'), 'utf8'));
-    expect(manifest).toEqual({
-      schemaVersion: 2,
+    expect(manifest).toMatchObject({
+      schemaVersion: 3,
       fastifyEpVersion: '0.1.0',
+      architectureVersion: 1,
       architecture: { schema: 'typebox', di: 'native', database: 'none' },
       modules: ['health'],
+    });
+  });
+
+  describe('file hashes in the manifest', () => {
+    function readManifestFiles(targetDir: string): Record<string, string> {
+      const manifest = JSON.parse(readFileSync(join(targetDir, '.fastify-ep.json'), 'utf8')) as {
+        files: Record<string, string>;
+      };
+      return manifest.files;
+    }
+
+    it('records the hash of every generated file as it is on disk after all edits', () => {
+      workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
+      const targetDir = join(workDir, 'my-app');
+
+      scaffoldProject({
+        targetDir,
+        projectName: 'my-app',
+        cliVersion: '0.9.0',
+        preset: 'production',
+        di: 'awilix',
+        database: 'drizzle',
+        packageManager: 'pnpm',
+      });
+
+      const files = readManifestFiles(targetDir);
+      expect(Object.keys(files)).toEqual([...Object.keys(files)].sort());
+      for (const [path, hash] of Object.entries(files)) {
+        expect(hashFile(join(targetDir, path)), path).toBe(hash);
+      }
+      // Files the scaffold edits after copying them are hashed in their final state.
+      expect(files).toHaveProperty(['src/app.ts']);
+      expect(files).toHaveProperty(['src/config/env.ts']);
+      expect(files).toHaveProperty(['pnpm-workspace.yaml']);
+    });
+
+    it('does not track package.json or the manifest', () => {
+      workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
+      const targetDir = join(workDir, 'my-app');
+
+      scaffoldProject({
+        targetDir,
+        projectName: 'my-app',
+        cliVersion: '0.9.0',
+        database: 'prisma',
+      });
+
+      const files = readManifestFiles(targetDir);
+      expect(files).not.toHaveProperty(['package.json']);
+      expect(files).not.toHaveProperty(['.fastify-ep.json']);
+    });
+
+    it('does not track files that were already in the directory', () => {
+      workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
+      const targetDir = join(workDir, 'my-app');
+      mkdirSync(targetDir);
+      writeFileSync(join(targetDir, 'NOTES.md'), 'mine\n');
+
+      scaffoldProject({ targetDir, projectName: 'my-app', cliVersion: '0.9.0' });
+
+      expect(readManifestFiles(targetDir)).not.toHaveProperty(['NOTES.md']);
     });
   });
 
