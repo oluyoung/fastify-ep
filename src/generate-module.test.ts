@@ -194,7 +194,9 @@ describe('generateModule', () => {
       const manifestBefore = readFileSync(manifestPath, 'utf8');
       chmodSync(manifestPath, 0o444);
 
-      expect(() => generateModule({ targetDir: workDir, moduleName: 'orders' })).toThrow(/EACCES/);
+      expect(() => generateModule({ targetDir: workDir, moduleName: 'orders' })).toThrow(
+        /EACCES|EPERM/,
+      );
 
       expect(existsSync(join(workDir, 'src/modules/orders'))).toBe(false);
       expect(readFileSync(appTsPath, 'utf8')).toBe(appTsBefore);

@@ -405,7 +405,7 @@ describe('generateResource --crud (drizzle)', () => {
     if (process.getuid?.() === 0) return;
     expect(() =>
       generateResource({ targetDir: workDir, resourceName: 'users', crud: true }),
-    ).toThrow(/EACCES/);
+    ).toThrow(/EACCES|EPERM/);
 
     expect(readFileSync(schemaPath, 'utf8')).toBe(schemaBefore);
     expect(read('src/app.ts')).toBe(appTsBefore);

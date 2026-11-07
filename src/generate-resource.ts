@@ -8,8 +8,9 @@ import { validateName } from './validate-name.js';
 /** Directory holding the `resource-template*` dirs (the package root). */
 const TEMPLATE_ROOT = fileURLToPath(new URL('..', import.meta.url));
 
-const DRIZZLE_SCHEMA_PATH = join('src', 'infrastructure', 'database', 'schema.ts');
-const PRISMA_SCHEMA_PATH = join('prisma', 'schema.prisma');
+// Manifest keys are always `/`-separated, so these must not be built with `join` (backslashes on Windows).
+const DRIZZLE_SCHEMA_PATH = 'src/infrastructure/database/schema.ts';
+const PRISMA_SCHEMA_PATH = 'prisma/schema.prisma';
 
 export interface GenerateResourceOptions {
   targetDir: string;
@@ -32,7 +33,7 @@ export class InvalidSingularNameError extends Error {
 }
 
 /** The ORM-specific edit to the project's schema file, so the generated repository compiles. */
-function schemaAppend(
+export function schemaAppend(
   database: DatabaseStrategy,
   v: { moduleName: string; tableName: string; EntityName: string },
 ): FileAppend | undefined {
