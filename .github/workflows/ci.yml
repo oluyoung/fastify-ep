@@ -30,6 +30,63 @@ jobs:
 
       - run: npm test
 
+      - name: Package contents
+        run: |
+          npm run build
+          node scripts/check-pack.mjs
+
+  cross-platform:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      - run: npm run build
+
+      - run: node scripts/check-pack.mjs
+
+      - name: Pack and install CLI from tarball
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          npm install -g "$RUNNER_TEMP"/fastify-ep-*.tgz
+
+      - name: init, generate, doctor, upgrade
+        run: |
+          mkdir -p "$RUNNER_TEMP/harness"
+          cd "$RUNNER_TEMP/harness"
+          fastify-ep init demo-app --pm npm --preset standard --database none --di native
+          cd demo-app
+          fastify-ep generate resource users --crud
+          fastify-ep generate module orders
+          fastify-ep doctor --strict
+          fastify-ep upgrade --dry-run
+
+      - name: Install, typecheck, test and build the generated project
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        run: |
+          npm install
+          npm run typecheck
+          npm run test
+          npm run build
+
   integration:
     name: integration (${{ matrix.pm }}, ${{ matrix.database }}, ${{ matrix.di }}, ${{ matrix.preset || 'standard' }})
     runs-on: ubuntu-latest
@@ -324,7 +381,7 @@ jobs:
         run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.database }} users
 
   publish:
-    needs: [lint-and-build, integration, workspace, upgrade, examples]
+    needs: [lint-and-build, cross-platform, integration, workspace, upgrade, examples]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -347,6 +404,8 @@ jobs:
       - run: npm ci
 
       - run: npm run build
+
+      - run: node scripts/check-pack.mjs
 
       - run: npm test
 

@@ -1,6 +1,6 @@
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { detectWorkspace } from './detect-workspace.js';
 import { hashContent, hashFile } from './file-hashes.js';
 import { generateModule } from './generate-module.js';
@@ -162,7 +162,7 @@ export function computeBaseline(
     if (workspace) {
       const servicePath = root
         .slice(workspace.root.length + 1)
-        .split('\\')
+        .split(sep)
         .join('/');
       extraDirs.push(scaffold('workspace', workspace.packageManager, servicePath));
     }
