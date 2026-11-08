@@ -130,7 +130,7 @@ export function buildDoctorReport(
   };
 }
 
-export const MIN_NODE_MAJOR = 22;
+export const MIN_NODE_MAJOR = 24;
 export const SUPPORTED_FASTIFY_MAJOR = 5;
 
 const HEALTH_MODULE_FILES = [
@@ -156,7 +156,7 @@ const DATABASE_CONFIG_FILES: Record<Exclude<DatabaseStrategy, 'none'>, string[]>
   prisma: ['prisma.config.ts', 'prisma/schema.prisma'],
 };
 
-/** Prisma 7 supports Node ^20.19 || ^22.12 || >=24; fastify-ep itself requires >=22. */
+/** Prisma 7 supports Node ^20.19 || ^22.12 || >=24; fastify-ep itself requires >=24. */
 export function prismaSupportsNode(version: string): boolean {
   const [major, minor] = version
     .replace(/^v/, '')

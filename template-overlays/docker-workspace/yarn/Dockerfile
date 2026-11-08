@@ -2,7 +2,7 @@
 # Docker reads {{servicePath}}/Dockerfile.dockerignore next to this file (BuildKit).
 # Yarn Berry (2+) only, with `nodeLinker: node-modules` in .yarnrc.yml (the image runs plain `node`).
 # It uses `yarn workspaces focus` and `yarn workspaces foreach`.
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 RUN corepack enable
 WORKDIR /repo
 # The whole workspace is copied before installing: a dependency's postinstall (e.g. `prisma generate`)
@@ -15,7 +15,7 @@ RUN yarn workspaces foreach --recursive --topological --from "{{projectName}}" r
 # Drop dev dependencies for the final image.
 RUN yarn workspaces focus "{{projectName}}" --production
 
-FROM node:22-alpine
+FROM node:24-alpine
 ENV NODE_ENV=production
 WORKDIR /repo
 COPY --from=build /repo ./

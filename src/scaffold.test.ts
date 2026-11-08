@@ -312,7 +312,7 @@ describe('scaffoldProject with a database', () => {
     expect(Object.keys(pkg.dependencies)).toEqual([...Object.keys(pkg.dependencies)].sort());
   });
 
-  it('prisma: adds the Prisma 7 config, generate-on-install, and a Node floor', () => {
+  it('prisma: adds the Prisma 7 config, generate-on-install, and the Node floor', () => {
     workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-scaffold-'));
     const targetDir = join(workDir, 'my-app');
 
@@ -320,7 +320,7 @@ describe('scaffoldProject with a database', () => {
 
     const pkg = readJson(targetDir, 'package.json');
     expect(pkg.scripts.postinstall).toBe('prisma generate');
-    expect(pkg.engines.node).toBe('>=22.12');
+    expect(pkg.engines.node).toBe('>=24');
     expect(pkg.dependencies['@prisma/client']).toMatch(/^\^7\./);
     expect(pkg.devDependencies.prisma).toMatch(/^\^7\./);
     expect(existsSync(join(targetDir, 'prisma/schema.prisma'))).toBe(true);

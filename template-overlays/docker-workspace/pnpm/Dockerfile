@@ -1,6 +1,6 @@
 # Build from the workspace root: docker build -f {{servicePath}}/Dockerfile -t {{projectName}} .
 # Docker reads {{servicePath}}/Dockerfile.dockerignore next to this file (BuildKit).
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 RUN corepack enable
 WORKDIR /repo
 # The whole workspace is copied before installing: a dependency's postinstall (e.g. `prisma generate`)
@@ -13,7 +13,7 @@ RUN pnpm --filter "{{projectName}}..." run build
 # Drop dev dependencies for the final image. Skip lifecycle scripts: dev-only tooling is gone.
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts --filter "{{projectName}}..."
 
-FROM node:22-alpine
+FROM node:24-alpine
 ENV NODE_ENV=production
 WORKDIR /repo
 COPY --from=build /repo ./

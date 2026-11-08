@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Upgrades a project that a real earlier release generated, with the CLI built from the working tree.
 # Usage: [FASTIFY_EP="node /path/to/dist/cli.js"] upgrade-smoke.sh <tag> <preset> <database> <di> [dir]
-# Needs the tag in git history, network, Node 22 and a built dist/ (or FASTIFY_EP). The upgraded
+# Needs the tag in git history, network, Node 24 and a built dist/ (or FASTIFY_EP). The upgraded
 # project must equal what the current CLI generates, pass `doctor --strict`, and install, typecheck,
 # test and build. A tag at the CLI's own version has nothing to migrate, so the equality check is skipped.
 set -euo pipefail
@@ -53,7 +53,9 @@ if [ "$old_version" != "$cli_version" ]; then
   [ "$(printf '%s\n0.9.0\n' "$cli_version" | sort -V | head -1)" = 0.9.0 ] || manifest_args=(-x .fastify-ep.json)
   # `upgrade` migrates project-level files, never the resources you generated, so a resource's
   # repository test (added in 0.10) is expected to exist only in the freshly generated project.
-  diff -r -x node_modules -x dist -x package-lock.json -x package.json -x users.repository.test.ts -x .fastify-ep.json "$work/fresh/demo-app" . \
+  # The Node 24 move (0.12) has no migration either: an upgraded project keeps its node:22 Dockerfile,
+  # `engines` and @types/node, so the Dockerfile is not compared (nor its manifest hash).
+  diff -r -x node_modules -x dist -x package-lock.json -x package.json -x users.repository.test.ts -x Dockerfile -x .fastify-ep.json "$work/fresh/demo-app" . \
     || fail "the upgraded project differs from a freshly generated one"
   # The manifest also records that file's hash, so compare it without that one entry. Before 0.9.0
   # there is no manifest conversion, so a schema 2 manifest legitimately stays as it is.
@@ -61,7 +63,10 @@ if [ "$old_version" != "$cli_version" ]; then
     node -e "
       const read = (dir) => {
         const manifest = JSON.parse(require('fs').readFileSync(dir + '/.fastify-ep.json', 'utf8'));
-        if (manifest.files) delete manifest.files['src/modules/users/users.repository.test.ts'];
+        if (manifest.files) {
+          delete manifest.files['src/modules/users/users.repository.test.ts'];
+          delete manifest.files['Dockerfile'];
+        }
         return JSON.stringify(manifest, null, 2);
       };
       if (read('$work/fresh/demo-app') !== read('.')) {
@@ -75,6 +80,9 @@ if [ "$old_version" != "$cli_version" ]; then
     const read = (dir) => {
       const pkg = JSON.parse(require('fs').readFileSync(dir + '/package.json', 'utf8'));
       delete pkg.version;
+      // Not migrated since 0.12: the Node floor and its types.
+      delete pkg.engines;
+      if (pkg.devDependencies) delete pkg.devDependencies['@types/node'];
       return JSON.stringify(pkg, null, 2);
     };
     if (read('$work/fresh/demo-app') !== read('.')) {

@@ -4,6 +4,17 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
+## [0.12.0] — Node 24 and TypeScript 6
+
+The supported toolchain moves forward: Node.js 24 and TypeScript 6. Existing projects keep working; only newly generated projects change, plus one small `upgrade` migration for the TypeScript range.
+
+### Changed (breaking for Node 22 users)
+
+- **Node.js 24 or newer is required** by the CLI and by newly generated projects: `engines.node` is `>=24` (it was `>=22`; the Prisma preset said `>=22.12`), `@types/node` is `^24`, and generated Dockerfiles use `node:24-alpine`. `doctor` fails on a Node older than 24. CI runs on Node 24 only.
+- There is **no migration** for the Node move: `upgrade` does not touch an existing project's `engines`, `@types/node` or Dockerfile. To move a project, change those three by hand.
+- **TypeScript 6** is the default: `typescript` is `^6.0.0` in generated projects, libraries and the CLI itself (it was `^5.5.4`). TypeScript 5 and 7 are checked in CI (`scripts/typescript-compat.sh`: typecheck, test and build of three project shapes); 7 is not the default because `typescript-eslint` does not support it yet.
+- Migration `0.11.0-to-0.12.0` changes `devDependencies.typescript` from the generated `^5.5.4` to `^6.0.0`. A range you set yourself is left alone and listed for review.
+
 ## [0.11.0] — Request ids and logging
 
 Every generated service now has a request id that is the same in the error body, the response header and the logs, and a logging convention with a configurable level. `fastify-ep upgrade` adds both to existing projects (0.6.0 and later). OpenTelemetry is not generated; the observability guide shows how to add it.
