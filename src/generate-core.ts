@@ -126,7 +126,7 @@ export function generateUnit({
   mkdirSync(moduleDir, { recursive: true });
   const moduleFiles: string[] = [];
   for (const [suffix, templatePath] of templateFiles) {
-    if (!withTests && suffix === 'test.ts') continue;
+    if (!withTests && suffix.endsWith('test.ts')) continue;
     const content = readFileSync(templatePath, 'utf8');
     writeFileSync(join(moduleDir, `${name}.${suffix}`), renderTemplate(content, vars));
     moduleFiles.push(`src/modules/${name}/${name}.${suffix}`);

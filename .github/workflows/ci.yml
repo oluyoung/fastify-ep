@@ -228,6 +228,25 @@ jobs:
           PRESET: ${{ matrix.preset || 'standard' }}
         run: ${{ github.workspace }}/scripts/smoke.sh ${{ matrix.database }} users
 
+      - name: Repository test against Postgres (must run, not skip)
+        if: matrix.database != 'none'
+        working-directory: ${{ runner.temp }}/harness/demo-app
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/app
+        run: |
+          npx vitest run --reporter=json --outputFile="$RUNNER_TEMP/vitest.json"
+          node -e "
+            const r = JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/vitest.json', 'utf8'));
+            const file = r.testResults.find((f) => f.name.endsWith('users.repository.test.ts'));
+            const tests = file ? file.assertionResults : [];
+            const notPassed = tests.filter((t) => t.status !== 'passed');
+            if (tests.length === 0 || notPassed.length > 0) {
+              console.error('repository test did not fully run:', tests.map((t) => t.status));
+              process.exit(1);
+            }
+            console.log('repository test ran against Postgres:', tests.length, 'tests passed');
+          "
+
       - name: Build the Docker image (needs the lockfile from the install step)
         if: matrix.preset == 'production'
         working-directory: ${{ runner.temp }}/harness/demo-app

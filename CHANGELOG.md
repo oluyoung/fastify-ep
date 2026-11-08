@@ -4,6 +4,26 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
+## [Unreleased]
+
+### Added
+
+- `generate resource --crud` on Drizzle and Prisma projects now also writes
+  `<name>.repository.test.ts`, which tests the repository against a real Postgres. It runs only
+  when `TEST_DATABASE_URL` is set, reachable and migrated, and is skipped otherwise; it never reads
+  `DATABASE_URL`. `--no-test` skips it. `upgrade` does not add it to existing resources.
+- `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, Dependabot, CodeQL, and a pack-contents
+  check in CI.
+- CI on Windows and macOS.
+
+### Fixed
+
+- On Windows, `generate resource --crud` on a Drizzle or Prisma project left a stale hash for
+  `src/infrastructure/database/schema.ts` or `prisma/schema.prisma`, so `doctor --strict` reported
+  it and `upgrade` treated the file as edited.
+- `npm run build` failed on Windows (`chmod`).
+- The published package no longer contains compiled test files.
+
 ## [0.9.0] — Upgrades and Stabilisation
 
 Projects created by 0.6.0 or later can move to the current conventions with `fastify-ep upgrade`,

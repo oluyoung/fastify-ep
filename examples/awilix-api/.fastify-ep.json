@@ -43,6 +43,7 @@
     "src/modules/orders/orders.test.ts": "sha256:24b0b66982c4a53dbc3880cad23ab46f33a048da3789fd35d6dae18bd95787a9",
     "src/modules/users/users.controller.ts": "sha256:c0ce20d16de450a35cf28071a813a983228969c451c3b594c1c6987605e3a0b0",
     "src/modules/users/users.module.ts": "sha256:dde7cc632769cfca64c6ee0b706156d5148e2c7cac82213f270bb05cbbcfd40c",
+    "src/modules/users/users.repository.test.ts": "sha256:5769a1962d420bb8613df95815bc8b9c14272c4d94ec9c06ba26a203e4df71df",
     "src/modules/users/users.repository.ts": "sha256:9a4183bdf7812e1ac8a363d2152a19f6d919b175bbcd74513eac100ce9994ac9",
     "src/modules/users/users.schema.ts": "sha256:4d8b953f83dca4162ef419e529d890f48ed0ada83ed8d4e27fc9dd7204d067fb",
     "src/modules/users/users.service.ts": "sha256:c0e71a791f689df90886462a65ce2b368514792daea9755b4b376f9c95e8fb9b",

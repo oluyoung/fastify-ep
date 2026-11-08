@@ -52,7 +52,9 @@ if [ "$old_version" != "$cli_version" ]; then
   # Before 0.9.0 there is no manifest conversion, so a schema 2 manifest legitimately stays as it is.
   manifest_args=()
   [ "$(printf '%s\n0.9.0\n' "$cli_version" | sort -V | head -1)" = 0.9.0 ] || manifest_args=(-x .fastify-ep.json)
-  diff -r -x node_modules -x dist -x package-lock.json -x package.json "${manifest_args[@]}" "$work/fresh/demo-app" . \
+  # `upgrade` migrates project-level files, never the resources you generated, so a resource's
+  # repository test (added in 0.10) is expected to exist only in the freshly generated project.
+  diff -r -x node_modules -x dist -x package-lock.json -x package.json -x users.repository.test.ts "${manifest_args[@]}" "$work/fresh/demo-app" . \
     || fail "the upgraded project differs from a freshly generated one"
   # package.json is patched by key, and its own "version" field is the project's, so compare the rest.
   node -e "
