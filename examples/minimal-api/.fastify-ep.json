@@ -1,6 +1,6 @@
 {
   "schemaVersion": 3,
-  "fastifyEpVersion": "0.9.0",
+  "fastifyEpVersion": "0.11.0",
   "architectureVersion": 1,
   "architecture": {
     "schema": "typebox",
@@ -15,8 +15,8 @@
   ],
   "files": {
     ".gitignore": "sha256:45e7a2f072c7b060c473fe609e6a85e9da66e4d287270c9694f5319f480bf67a",
-    "src/app.ts": "sha256:428059b1dff5729877b5156194e81a2ee60d94797fb0ae09b5ea60f7fe1c5a88",
-    "src/config/env.ts": "sha256:33e8966602aed8b32524c54645bcde0bf15b8f9469451c47274193cb58c222a5",
+    "src/app.ts": "sha256:687e54a800bfd848c5dd3317dd9865784dcd8b5e1659c3038a7b3bab4888937e",
+    "src/config/env.ts": "sha256:ff111f4a7180baf375f06cccf48ed8e05803f32549fc1eeaa119612ee85df81a",
     "src/errors/app-error.ts": "sha256:2778d6d6219cfb0d2aea39fb70f17db59c9df3e2b96eba9ebec95510d68d9c62",
     "src/errors/error-handler.test.ts": "sha256:6a450ddbc4d61c93b5fc219427ffe1911c5c9c64ef230a769c4ae0d73f5819d7",
     "src/errors/error-handler.ts": "sha256:140fbc94ac09f8cf4a80584919a616f5c53181f17ddebbd05847d61cf05c9656",
@@ -40,6 +40,10 @@
     "src/modules/users/users.schema.ts": "sha256:4d8b953f83dca4162ef419e529d890f48ed0ada83ed8d4e27fc9dd7204d067fb",
     "src/modules/users/users.service.ts": "sha256:c0e71a791f689df90886462a65ce2b368514792daea9755b4b376f9c95e8fb9b",
     "src/modules/users/users.test.ts": "sha256:d326e330904bee2b03ae09ec96ab7b11ee4294fb0cc181c89656096bb37646f9",
+    "src/observability/logger.test.ts": "sha256:bc912a20e31b6349a2c0d29eb89198408adac67839c2186fd96118a9d8323c4e",
+    "src/observability/logger.ts": "sha256:5657a83dda6fc779980d92bc7a65333c39b95c491fededb557782a611c67a277",
+    "src/observability/request-id.test.ts": "sha256:e28b8f83890bc4561c63bb8e1486e07ec569fa3df2d2612c4e8cdf5e50f5737d",
+    "src/observability/request-id.ts": "sha256:2ab46cd39e511281a235b31aa10c78dc9ffa286f14499109f5a466bed13c8ef6",
     "src/server.ts": "sha256:ea2c3be50a0ad8849a58c8d3475c970646acd5568c6bbd91a0acae60f6a3a666",
     "tsconfig.build.json": "sha256:bf9b1687801d968a8dade0a3dd4e3cb1bf6df175cfa9a587213815a66a6d91da",
     "tsconfig.json": "sha256:419bebf3878e65fd8c926bc343812e4084e6baac7e0f6afbffaa6d7465dde6d8",

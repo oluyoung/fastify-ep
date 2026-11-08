@@ -184,7 +184,8 @@ describe('planUpgrade write', () => {
     const replaced = run(root, manifest, 'src/app.ts', 'export {};\n');
 
     expect(created.files.get('docs/new.md')).toBe('hello\n');
-    expect(created.manifest?.files).not.toHaveProperty(['docs/new.md']);
+    // A file the migration creates is generated, so it is tracked like one.
+    expect(created.manifest?.files?.['docs/new.md']).toBe(hashContent('hello\n'));
     expect(replaced.files.get('src/app.ts')).toBe('export {};\n');
     expect(replaced.manifest?.files?.['src/app.ts']).toBe(hashContent('export {};\n'));
     expect(replaced.review).toEqual([]);

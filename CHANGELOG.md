@@ -4,7 +4,25 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
-## [Unreleased]
+## [0.11.0] — Request ids and logging
+
+Every generated service now has a request id that is the same in the error body, the response header and the logs, and a logging convention with a configurable level. `fastify-ep upgrade` adds both to existing projects (0.6.0 and later). OpenTelemetry is not generated; the observability guide shows how to add it.
+
+### Added
+
+- **Request ids** (all presets). The id is the caller's `x-request-id` when it is 1 to 128 characters of letters, digits, `.`, `_` or `-`, otherwise a new UUID. It is returned in the `x-request-id` response header and in `error.requestId`, and is the `reqId` on every log line of the request. Code is in `src/observability/request-id.ts`.
+- **Logging convention** (all presets). `LOG_LEVEL` (`fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent`; default `info`) is part of the env schema, and credentials in logged `headers` (`authorization`, `cookie`, `set-cookie`) are redacted. Code is in `src/observability/logger.ts`.
+- Tests for both are generated with the project.
+- Migration `0.10.0-to-0.11.0`: creates the four files and patches `src/app.ts` and `src/config/env.ts` at fixed anchors. Edited files are patched where the anchor still matches and reported otherwise.
+
+### Changed
+
+- `upgrade` runs the schema 3 conversion (`0.8.0-to-0.9.0`) after the other migrations, so file hashes are recorded for the files as they are after the content migrations. A file a migration creates is recorded in the manifest.
+- `Fastify({ logger: true })` in `src/app.ts` is now `Fastify({ logger: loggerOptions(), genReqId: generateRequestId })`. The log level is set from `LOG_LEVEL` once the env plugin has read `.env`.
+
+## [0.10.0] — 1.0 Run-up
+
+Hardening before 1.0: cross-platform CI, supply-chain checks, repository maintenance files and real-database tests for generated CRUD resources. Generated projects are otherwise identical to 0.9.0, so `fastify-ep upgrade` only moves the recorded version.
 
 ### Added
 

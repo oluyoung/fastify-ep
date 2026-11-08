@@ -6,12 +6,13 @@ import type { Migration, MigrationRequest } from './types.js';
  * 0.8.0 to 0.9.0: converts the manifest to schema 3. A schema 2 manifest has no file hashes, so the
  * project is re-rendered with the current templates and every byte-identical file is recorded as
  * generated. Files that differ are left untracked (so later upgrades never overwrite them) and
- * listed for review. Runs after the earlier migrations, which bring older output up to date first.
+ * listed for review. Runs after every other migration (`runsLast`), which bring older output up to date first.
  */
 export const migration0_8_0To0_9_0: Migration = {
   id: '0.8.0-to-0.9.0',
   from: '0.8.0',
   to: '0.9.0',
+  runsLast: true,
   plan: ({ manifest, root, read }) => {
     if (manifest.schemaVersion !== 2) return [];
 
