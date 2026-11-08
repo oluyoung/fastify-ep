@@ -105,7 +105,10 @@ export function planUpgrade({
 
   const chain = migrations
     .filter((m) => compareVersions(from, m.to) < 0 && compareVersions(m.to, targetVersion) <= 0)
-    .sort((a, b) => compareVersions(a.to, b.to));
+    .sort(
+      (a, b) =>
+        Number(a.runsLast === true) - Number(b.runsLast === true) || compareVersions(a.to, b.to),
+    );
 
   const virtual: Manifest = structuredClone(manifest);
   const overlay = new Map<string, string>();
@@ -127,10 +130,11 @@ export function planUpgrade({
 
   /** Keeps a tracked file's recorded hash in step with an edit, but only if it was untouched. */
   const setFile = (path: string, content: string): void => {
-    const pristine = stateOf(path) === 'pristine';
+    // A file the migration creates is generated, so it is tracked like one (schema 3 only).
+    const tracked = stateOf(path) === 'pristine' || read(path) === undefined;
     overlay.set(path, content);
     plan.files.set(path, content);
-    if (pristine && virtual.files) virtual.files[path] = hashContent(content);
+    if (tracked && virtual.files) virtual.files[path] = hashContent(content);
   };
 
   for (const migration of chain) {
@@ -184,7 +188,14 @@ function resolveRequest(request: MigrationRequest, r: Resolver): boolean {
   switch (request.kind) {
     case 'write': {
       const current = r.read(request.path);
-      if (current === request.content) return false;
+      if (current === request.content) {
+        // Already what the migration writes: adopt it as generated if the manifest does not track it yet.
+        if (r.virtual.files && r.virtual.files[request.path] === undefined) {
+          r.virtual.files[request.path] = hashContent(current);
+          return true;
+        }
+        return false;
+      }
       const state = r.stateOf(request.path);
       if (current !== undefined && state !== 'pristine') {
         r.review(
@@ -204,6 +215,10 @@ function resolveRequest(request: MigrationRequest, r: Resolver): boolean {
       if (current === undefined) {
         r.review(request.path, 'does not exist, so it could not be updated.');
         return false;
+      }
+      // A replacement that still contains its anchor (an insertion) would apply twice, so check first.
+      if (request.replacement.includes(request.anchor) && current.includes(request.replacement)) {
+        return false; // Already applied.
       }
       const occurrences = current.split(request.anchor).length - 1;
       if (occurrences === 1) {

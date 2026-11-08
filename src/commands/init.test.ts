@@ -100,7 +100,7 @@ describe('workspaceFollowUps', () => {
     const notes = workspaceFollowUps(workspace(), '/repo/apps/svc', 'none');
     expect(notes).toHaveLength(1);
     expect(notes[0]).toContain('No pnpm-workspace.yaml was written');
-    expect(notes[0]).toContain('/repo/pnpm-workspace.yaml');
+    expect(notes[0]).toContain(join('/repo', 'pnpm-workspace.yaml'));
     expect(notes[0]).toContain('allowBuilds:');
     expect(notes[0]).toContain('esbuild: false');
   });
@@ -129,7 +129,7 @@ describe('workspaceFollowUps', () => {
       'none',
     );
     expect(notes).toHaveLength(1);
-    expect(notes[0]).toContain('"workspaces" in /repo/package.json');
+    expect(notes[0]).toContain(`"workspaces" in ${join('/repo', 'package.json')}`);
     expect(notes[0]).toContain('Add "apps/*"');
   });
 

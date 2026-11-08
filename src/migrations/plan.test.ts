@@ -184,7 +184,8 @@ describe('planUpgrade write', () => {
     const replaced = run(root, manifest, 'src/app.ts', 'export {};\n');
 
     expect(created.files.get('docs/new.md')).toBe('hello\n');
-    expect(created.manifest?.files).not.toHaveProperty(['docs/new.md']);
+    // A file the migration creates is generated, so it is tracked like one.
+    expect(created.manifest?.files?.['docs/new.md']).toBe(hashContent('hello\n'));
     expect(replaced.files.get('src/app.ts')).toBe('export {};\n');
     expect(replaced.manifest?.files?.['src/app.ts']).toBe(hashContent('export {};\n'));
     expect(replaced.review).toEqual([]);
@@ -249,6 +250,19 @@ describe('planUpgrade patch', () => {
     expect(result.files.get('src/app.ts')).toContain('// mine');
     // The file was already modified, so its recorded hash is not adopted.
     expect(result.manifest?.files?.['src/app.ts']).toBe(manifest.files?.['src/app.ts']);
+  });
+
+  it('does not apply an insertion twice when the replacement still contains the anchor', () => {
+    const { root, manifest } = project();
+    const insertion = 'fastify-ep:register\n  // added\n';
+
+    const first = run(root, manifest, 'fastify-ep:register\n', insertion);
+    writeFileSync(join(root, 'src/app.ts'), first.files.get('src/app.ts') as string);
+    const second = run(root, manifest, 'fastify-ep:register\n', insertion);
+
+    expect(first.files.get('src/app.ts')).toContain('// added');
+    expect(second.files.size).toBe(0);
+    expect(second.review).toEqual([]);
   });
 
   it('refreshes the hash of a pristine tracked file', () => {

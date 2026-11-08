@@ -1,6 +1,6 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { validateInit } from './validate-init.js';
 
@@ -8,7 +8,7 @@ describe('validateInit (npm-name half)', () => {
   it('accepts a valid unscoped package name', () => {
     expect(validateInit('my-app', '/tmp')).toEqual({
       valid: true,
-      targetDir: '/tmp/my-app',
+      targetDir: resolve('/tmp', 'my-app'),
       packageName: 'my-app',
     });
   });

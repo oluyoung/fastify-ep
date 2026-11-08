@@ -1,0 +1,42 @@
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  schedule:
+    - cron: '0 7 * * 2'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          # Generated templates are not part of the CLI's own attack surface.
+          config: |
+            paths-ignore:
+              - examples
+              - templates
+              - template-overlays
+              - module-template
+              - module-template-awilix
+              - resource-template
+              - resource-template-awilix
+              - resource-template-crud
+              - resource-template-crud-awilix
+              - resource-template-crud-drizzle
+              - resource-template-crud-orm
+              - resource-template-crud-prisma
+              - library-template
+
+      - uses: github/codeql-action/analyze@v3

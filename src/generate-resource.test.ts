@@ -301,6 +301,7 @@ describe('generateResource --crud (no database)', () => {
         'repository',
         'test',
         ...(database === 'drizzle' ? ['table'] : []),
+        ...(database === 'none' ? [] : ['repository.test']),
       ]) {
         expect(
           read(`src/modules/user-profiles/user-profiles.${file}.ts`),
@@ -405,7 +406,7 @@ describe('generateResource --crud (drizzle)', () => {
     if (process.getuid?.() === 0) return;
     expect(() =>
       generateResource({ targetDir: workDir, resourceName: 'users', crud: true }),
-    ).toThrow(/EACCES/);
+    ).toThrow(/EACCES|EPERM/);
 
     expect(readFileSync(schemaPath, 'utf8')).toBe(schemaBefore);
     expect(read('src/app.ts')).toBe(appTsBefore);
@@ -473,5 +474,41 @@ describe('generateResource --crud (prisma)', () => {
     ).toThrow(MarkerNotFoundError);
 
     expect(read('prisma/schema.prisma')).toBe(schemaBefore);
+  });
+});
+
+describe('generateResource --crud repository database test', () => {
+  it.each(['drizzle', 'prisma'] as const)(
+    'adds a %s repository test that only runs against TEST_DATABASE_URL',
+    (database) => {
+      workDir = makeScaffoldedProject(database);
+
+      generateResource({ targetDir: workDir, resourceName: 'user-profiles', crud: true });
+
+      const test = read('src/modules/user-profiles/user-profiles.repository.test.ts');
+      expect(test).toContain('process.env.TEST_DATABASE_URL');
+      expect(test).not.toContain('process.env.DATABASE_URL');
+      expect(test).toContain('describe.skipIf(!ready)');
+      expect(test).toContain('UserProfilesRepository');
+      expect(test).toContain('a user-profile');
+    },
+  );
+
+  it('is not generated without a database, without --crud or with withTests: false', () => {
+    const path = 'src/modules/users/users.repository.test.ts';
+
+    workDir = makeScaffoldedProject('none');
+    generateResource({ targetDir: workDir, resourceName: 'users', crud: true });
+    expect(existsSync(join(workDir, path))).toBe(false);
+    rmSync(workDir, { recursive: true, force: true });
+
+    workDir = makeScaffoldedProject('drizzle');
+    generateResource({ targetDir: workDir, resourceName: 'users' });
+    expect(existsSync(join(workDir, path))).toBe(false);
+    rmSync(workDir, { recursive: true, force: true });
+
+    workDir = makeScaffoldedProject('prisma');
+    generateResource({ targetDir: workDir, resourceName: 'users', crud: true, withTests: false });
+    expect(existsSync(join(workDir, path))).toBe(false);
   });
 });

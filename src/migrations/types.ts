@@ -32,6 +32,12 @@ export interface Migration {
   from: string;
   /** The version the project is at once this migration has run. */
   to: string;
+  /**
+   * Run after every other migration in the chain. For a migration that compares the project with
+   * what the current templates generate (the schema 3 conversion), so that it sees the files after
+   * all the content migrations have updated them, not before.
+   */
+  runsLast?: boolean;
   /** Pure: reads the context, returns requests, writes nothing. */
   plan(context: MigrationContext): MigrationRequest[];
 }

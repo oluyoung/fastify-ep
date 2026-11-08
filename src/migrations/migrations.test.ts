@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runDoctorChecks } from '../doctor.js';
+import { hashContent } from '../file-hashes.js';
 import { generateModule } from '../generate-module.js';
 import { generateResource } from '../generate-resource.js';
 import { readManifest, type DatabaseStrategy, type DiStrategy, type Preset } from '../manifest.js';
@@ -19,8 +20,8 @@ import { applyPlan, MIGRATIONS, MINIMUM_SUPPORTED_VERSION, planUpgrade } from '.
  * work step 8.
  */
 
-const TARGET = '0.9.0';
-const VERSIONS = ['0.6.0', '0.6.1', '0.7.0', '0.8.0'] as const;
+const TARGET = '0.11.0';
+const VERSIONS = ['0.6.0', '0.6.1', '0.7.0', '0.8.0', '0.9.0', '0.10.0'] as const;
 type Version = (typeof VERSIONS)[number];
 
 interface Setup {
@@ -62,6 +63,45 @@ function editJson(
   writeFileSync(path, `${JSON.stringify(json, null, 2)}\n`);
 }
 
+const OBSERVABILITY_FILES = [
+  'src/observability/logger.ts',
+  'src/observability/request-id.ts',
+  'src/observability/logger.test.ts',
+  'src/observability/request-id.test.ts',
+];
+
+/** Turns the request id and logging convention (added in 0.11.0) back into what 0.10.0 generated. */
+function removeObservability(old: string): void {
+  for (const path of OBSERVABILITY_FILES) rmSync(join(old, path));
+  rmSync(join(old, 'src/observability'), { recursive: true });
+  const edit = (path: string, pairs: [string, string][]): void => {
+    let text = readFileSync(join(old, path), 'utf8');
+    for (const [from, to] of pairs) {
+      expect(text).toContain(from);
+      text = text.replace(from, to);
+    }
+    writeFileSync(join(old, path), text);
+  };
+  edit('src/app.ts', [
+    [
+      "import { loggerOptions } from './observability/logger.js';\nimport { generateRequestId, registerRequestId } from './observability/request-id.js';\n",
+      '',
+    ],
+    [
+      'Fastify({ logger: loggerOptions(), genReqId: generateRequestId })',
+      'Fastify({ logger: true })',
+    ],
+    ['  fastify.log.level = fastify.config.LOG_LEVEL;\n  registerRequestId(fastify);\n', ''],
+  ]);
+  edit('src/config/env.ts', [
+    [
+      "    LOG_LEVEL: {\n      type: 'string',\n      enum: ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'],\n      default: 'info',\n    },\n",
+      '',
+    ],
+    ['      LOG_LEVEL: string;\n', ''],
+  ]);
+}
+
 /** The project the current CLI generates, plus an older-version copy of it. */
 function fixture(
   setup: Setup,
@@ -74,14 +114,29 @@ function fixture(
   generateResource({ targetDir: old, resourceName: 'users', crud: true });
   const expected = snapshot(old);
 
+  removeObservability(old);
+
   const manifestPath = join(old, '.fastify-ep.json');
   const manifest = readManifest(manifestPath);
-  delete manifest.files;
-  delete manifest.architectureVersion;
-  writeFileSync(
-    manifestPath,
-    `${JSON.stringify({ ...manifest, schemaVersion: 2, fastifyEpVersion: version }, null, 2)}\n`,
-  );
+  if (version === '0.9.0' || version === '0.10.0') {
+    // Schema 3: the hashes describe the older files.
+    const files = { ...manifest.files };
+    for (const path of OBSERVABILITY_FILES) delete files[path];
+    for (const path of ['src/app.ts', 'src/config/env.ts']) {
+      files[path] = hashContent(readFileSync(join(old, path), 'utf8'));
+    }
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify({ ...manifest, files, fastifyEpVersion: version }, null, 2)}\n`,
+    );
+  } else {
+    delete manifest.files;
+    delete manifest.architectureVersion;
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify({ ...manifest, schemaVersion: 2, fastifyEpVersion: version }, null, 2)}\n`,
+    );
+  }
   editJson(join(old, 'package.json'), (pkg) => {
     if (version === '0.6.0' || version === '0.6.1') delete pkg.devDependencies.vite;
     if (version === '0.6.0') pkg.devDependencies.vitest = '^2.0.5';
@@ -104,7 +159,7 @@ function upgrade(root: string) {
   });
 }
 
-describe('upgrading to 0.9.0 gives back what the current CLI generates', () => {
+describe('upgrading to 0.11.0 gives back what the current CLI generates', () => {
   const cases = SETUPS.flatMap((setup) => VERSIONS.map((version) => ({ setup, version })));
 
   it.each(cases)('$version, $setup.preset / $setup.di / $setup.database', ({ setup, version }) => {
@@ -122,7 +177,12 @@ describe('upgrading to 0.9.0 gives back what the current CLI generates', () => {
   it('plans exactly the migrations from the project version on', () => {
     const { old } = fixture(SETUPS[0], '0.7.0');
 
-    expect(upgrade(old).migrations).toEqual(['0.7.0-to-0.8.0', '0.8.0-to-0.9.0']);
+    // The schema 3 conversion runs last, so it sees the files the other migrations updated.
+    expect(upgrade(old).migrations).toEqual([
+      '0.7.0-to-0.8.0',
+      '0.10.0-to-0.11.0',
+      '0.8.0-to-0.9.0',
+    ]);
   });
 });
 
@@ -212,5 +272,26 @@ describe('a dry run is the real plan', () => {
         '.fastify-ep.json',
       ]),
     );
+  });
+});
+
+describe('upgrading a project that already has the changes', () => {
+  it('changes nothing but the recorded version', () => {
+    // The current CLI's output with an older version in the manifest, as workspace-smoke.sh does.
+    workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-migrations-'));
+    const root = join(workDir, 'current');
+    scaffoldProject({ targetDir: root, projectName: 'demo-app', cliVersion: TARGET, ...SETUPS[0] });
+    const expected = snapshot(root);
+    const manifestPath = join(root, '.fastify-ep.json');
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify({ ...readManifest(manifestPath), fastifyEpVersion: '0.7.0' }, null, 2)}\n`,
+    );
+
+    const plan = upgrade(root);
+    applyPlan(root, plan);
+
+    expect(plan.review).toEqual([]);
+    expect(snapshot(root)).toEqual(expected);
   });
 });

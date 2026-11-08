@@ -10,6 +10,11 @@ const schema = {
     PORT: { type: 'number', default: 3000 },
     HOST: { type: 'string', default: '0.0.0.0' },
     NODE_ENV: { type: 'string', default: 'development' },
+    LOG_LEVEL: {
+      type: 'string',
+      enum: ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'],
+      default: 'info',
+    },
     SHUTDOWN_TIMEOUT_MS: { type: 'number', default: 10000 },
     CORS_ORIGIN: { type: 'string', default: '' },
     RATE_LIMIT_MAX: { type: 'number', default: 100 },
@@ -23,6 +28,7 @@ declare module 'fastify' {
       PORT: number;
       HOST: string;
       NODE_ENV: string;
+      LOG_LEVEL: string;
       SHUTDOWN_TIMEOUT_MS: number;
       CORS_ORIGIN: string;
       RATE_LIMIT_MAX: number;
