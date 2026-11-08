@@ -188,7 +188,14 @@ function resolveRequest(request: MigrationRequest, r: Resolver): boolean {
   switch (request.kind) {
     case 'write': {
       const current = r.read(request.path);
-      if (current === request.content) return false;
+      if (current === request.content) {
+        // Already what the migration writes: adopt it as generated if the manifest does not track it yet.
+        if (r.virtual.files && r.virtual.files[request.path] === undefined) {
+          r.virtual.files[request.path] = hashContent(current);
+          return true;
+        }
+        return false;
+      }
       const state = r.stateOf(request.path);
       if (current !== undefined && state !== 'pristine') {
         r.review(
@@ -208,6 +215,10 @@ function resolveRequest(request: MigrationRequest, r: Resolver): boolean {
       if (current === undefined) {
         r.review(request.path, 'does not exist, so it could not be updated.');
         return false;
+      }
+      // A replacement that still contains its anchor (an insertion) would apply twice, so check first.
+      if (request.replacement.includes(request.anchor) && current.includes(request.replacement)) {
+        return false; // Already applied.
       }
       const occurrences = current.split(request.anchor).length - 1;
       if (occurrences === 1) {

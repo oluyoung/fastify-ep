@@ -252,6 +252,19 @@ describe('planUpgrade patch', () => {
     expect(result.manifest?.files?.['src/app.ts']).toBe(manifest.files?.['src/app.ts']);
   });
 
+  it('does not apply an insertion twice when the replacement still contains the anchor', () => {
+    const { root, manifest } = project();
+    const insertion = 'fastify-ep:register\n  // added\n';
+
+    const first = run(root, manifest, 'fastify-ep:register\n', insertion);
+    writeFileSync(join(root, 'src/app.ts'), first.files.get('src/app.ts') as string);
+    const second = run(root, manifest, 'fastify-ep:register\n', insertion);
+
+    expect(first.files.get('src/app.ts')).toContain('// added');
+    expect(second.files.size).toBe(0);
+    expect(second.review).toEqual([]);
+  });
+
   it('refreshes the hash of a pristine tracked file', () => {
     const { root, manifest } = project();
 

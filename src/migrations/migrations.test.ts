@@ -274,3 +274,24 @@ describe('a dry run is the real plan', () => {
     );
   });
 });
+
+describe('upgrading a project that already has the changes', () => {
+  it('changes nothing but the recorded version', () => {
+    // The current CLI's output with an older version in the manifest, as workspace-smoke.sh does.
+    workDir = mkdtempSync(join(tmpdir(), 'fastify-ep-migrations-'));
+    const root = join(workDir, 'current');
+    scaffoldProject({ targetDir: root, projectName: 'demo-app', cliVersion: TARGET, ...SETUPS[0] });
+    const expected = snapshot(root);
+    const manifestPath = join(root, '.fastify-ep.json');
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify({ ...readManifest(manifestPath), fastifyEpVersion: '0.7.0' }, null, 2)}\n`,
+    );
+
+    const plan = upgrade(root);
+    applyPlan(root, plan);
+
+    expect(plan.review).toEqual([]);
+    expect(snapshot(root)).toEqual(expected);
+  });
+});
