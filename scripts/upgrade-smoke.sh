@@ -49,13 +49,27 @@ if [ "$old_version" != "$cli_version" ]; then
   mkdir -p "$work/fresh"
   (cd "$work/fresh" && fep init demo-app --pm npm --preset "$preset" --database "$database" --di "$di")
   (cd "$work/fresh/demo-app" && fep generate module orders && fep g resource users --crud)
-  # Before 0.9.0 there is no manifest conversion, so a schema 2 manifest legitimately stays as it is.
   manifest_args=()
   [ "$(printf '%s\n0.9.0\n' "$cli_version" | sort -V | head -1)" = 0.9.0 ] || manifest_args=(-x .fastify-ep.json)
   # `upgrade` migrates project-level files, never the resources you generated, so a resource's
   # repository test (added in 0.10) is expected to exist only in the freshly generated project.
-  diff -r -x node_modules -x dist -x package-lock.json -x package.json -x users.repository.test.ts "${manifest_args[@]}" "$work/fresh/demo-app" . \
+  diff -r -x node_modules -x dist -x package-lock.json -x package.json -x users.repository.test.ts -x .fastify-ep.json "$work/fresh/demo-app" . \
     || fail "the upgraded project differs from a freshly generated one"
+  # The manifest also records that file's hash, so compare it without that one entry. Before 0.9.0
+  # there is no manifest conversion, so a schema 2 manifest legitimately stays as it is.
+  if [ ${#manifest_args[@]} -eq 0 ]; then
+    node -e "
+      const read = (dir) => {
+        const manifest = JSON.parse(require('fs').readFileSync(dir + '/.fastify-ep.json', 'utf8'));
+        if (manifest.files) delete manifest.files['src/modules/users/users.repository.test.ts'];
+        return JSON.stringify(manifest, null, 2);
+      };
+      if (read('$work/fresh/demo-app') !== read('.')) {
+        console.error('.fastify-ep.json differs from a freshly generated one');
+        process.exit(1);
+      }
+    "
+  fi
   # package.json is patched by key, and its own "version" field is the project's, so compare the rest.
   node -e "
     const read = (dir) => {
