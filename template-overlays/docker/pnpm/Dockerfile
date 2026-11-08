@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 RUN corepack enable
 WORKDIR /app
 # The whole project is copied before installing: a dependency's postinstall (e.g. `prisma generate`)
@@ -7,7 +7,7 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm run build
 
-FROM node:22-alpine
+FROM node:24-alpine
 RUN corepack enable
 ENV NODE_ENV=production
 WORKDIR /app

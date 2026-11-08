@@ -1,6 +1,6 @@
 {
   "schemaVersion": 3,
-  "fastifyEpVersion": "0.11.0",
+  "fastifyEpVersion": "0.12.0",
   "architectureVersion": 1,
   "architecture": {
     "schema": "typebox",
@@ -17,7 +17,7 @@
     ".dockerignore": "sha256:9b889737fa1ca353ce39283006f3b10b69635c167bb97fe496d60939530d952c",
     ".env.example": "sha256:6e1c74ba2ba5d68fb40d586d833e6a517a3f6937465948bc4c8db2b578d26941",
     ".gitignore": "sha256:45e7a2f072c7b060c473fe609e6a85e9da66e4d287270c9694f5319f480bf67a",
-    "Dockerfile": "sha256:15d5d1e690eb2a4e46b751dd119fec3b7faee20b9207c1766b6b58263bd401a2",
+    "Dockerfile": "sha256:1a10e20985ad59442bbeeafbf817268e0962911ad3589c60cdb94431e83b6c53",
     "docker-compose.yml": "sha256:c3ce0ad93374cc1c26eb5c675433419346bfb11bb6872189aa3793ef2793ef95",
     "drizzle.config.ts": "sha256:9e604ea0778efc367e708f5626eb3d448c80200ad6e65f7db113bea53a16f2b2",
     "src/app.ts": "sha256:ad4e8aa2952e089afcc2791b1aa747158baa7c3e5f074451a2a8c925f9c13a59",

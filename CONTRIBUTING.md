@@ -9,7 +9,7 @@ By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). For secur
 
 ## Setup
 
-Requires Node.js 22 or newer.
+Requires Node.js 24 or newer.
 
 ```sh
 git clone https://github.com/oluyoung/fastify-ep.git

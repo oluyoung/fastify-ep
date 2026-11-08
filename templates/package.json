@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -20,9 +20,9 @@
     "fastify-plugin": "^5.0.1"
   },
   "devDependencies": {
-    "@types/node": "^22.5.0",
+    "@types/node": "^24.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.5.4",
+    "typescript": "^6.0.0",
     "vite": "^7.0.0",
     "vitest": "^5.0.5"
   }

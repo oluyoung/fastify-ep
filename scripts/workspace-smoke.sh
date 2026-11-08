@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Exercises fastify-ep inside a workspace: two services and one library, one install at the root.
 # Usage: [FASTIFY_EP="node /path/to/dist/cli.js"] [SKIP_DOCKER=1] workspace-smoke.sh <npm|pnpm|yarn> [dir]
-# Builds the workspace in [dir] (default: a temp dir), so run it from anywhere. Needs Node 22 and
+# Builds the workspace in [dir] (default: a temp dir), so run it from anywhere. Needs Node 24 and
 # corepack; Docker for the image build unless SKIP_DOCKER=1. Yarn runs as Berry 4 (node-modules linker).
 set -euo pipefail
 

@@ -20,8 +20,8 @@ import { applyPlan, MIGRATIONS, MINIMUM_SUPPORTED_VERSION, planUpgrade } from '.
  * work step 8.
  */
 
-const TARGET = '0.11.0';
-const VERSIONS = ['0.6.0', '0.6.1', '0.7.0', '0.8.0', '0.9.0', '0.10.0'] as const;
+const TARGET = '0.12.0';
+const VERSIONS = ['0.6.0', '0.6.1', '0.7.0', '0.8.0', '0.9.0', '0.10.0', '0.11.0'] as const;
 type Version = (typeof VERSIONS)[number];
 
 interface Setup {
@@ -114,16 +114,18 @@ function fixture(
   generateResource({ targetDir: old, resourceName: 'users', crud: true });
   const expected = snapshot(old);
 
-  removeObservability(old);
+  if (version !== '0.11.0') removeObservability(old);
 
   const manifestPath = join(old, '.fastify-ep.json');
   const manifest = readManifest(manifestPath);
-  if (version === '0.9.0' || version === '0.10.0') {
+  if (version === '0.9.0' || version === '0.10.0' || version === '0.11.0') {
     // Schema 3: the hashes describe the older files.
     const files = { ...manifest.files };
-    for (const path of OBSERVABILITY_FILES) delete files[path];
-    for (const path of ['src/app.ts', 'src/config/env.ts']) {
-      files[path] = hashContent(readFileSync(join(old, path), 'utf8'));
+    if (version !== '0.11.0') {
+      for (const path of OBSERVABILITY_FILES) delete files[path];
+      for (const path of ['src/app.ts', 'src/config/env.ts']) {
+        files[path] = hashContent(readFileSync(join(old, path), 'utf8'));
+      }
     }
     writeFileSync(
       manifestPath,
@@ -138,6 +140,7 @@ function fixture(
     );
   }
   editJson(join(old, 'package.json'), (pkg) => {
+    pkg.devDependencies.typescript = '^5.5.4'; // 0.12.0 moved to 6
     if (version === '0.6.0' || version === '0.6.1') delete pkg.devDependencies.vite;
     if (version === '0.6.0') pkg.devDependencies.vitest = '^2.0.5';
     if (version === '0.6.1') pkg.devDependencies.vitest = '^4.1.0';
@@ -181,6 +184,7 @@ describe('upgrading to 0.11.0 gives back what the current CLI generates', () => 
     expect(upgrade(old).migrations).toEqual([
       '0.7.0-to-0.8.0',
       '0.10.0-to-0.11.0',
+      '0.11.0-to-0.12.0',
       '0.8.0-to-0.9.0',
     ]);
   });
@@ -212,6 +216,7 @@ describe('upgrading never overwrites what the user changed', () => {
   it('keeps a vitest range the user pinned and reports it', () => {
     const { old } = fixture(SETUPS[0], '0.6.1');
     editJson(join(old, 'package.json'), (pkg) => {
+      pkg.devDependencies.typescript = '^5.5.4'; // 0.12.0 moved to 6
       pkg.devDependencies.vitest = '^4.9.0';
     });
 
@@ -224,6 +229,24 @@ describe('upgrading never overwrites what the user changed', () => {
     expect(pkg.devDependencies.vitest).toBe('^4.9.0');
     expect(pkg.devDependencies.vite).toBe('^7.0.0');
     expect(plan.review.some((r) => r.path === 'package.json' && /vitest/.test(r.reason))).toBe(
+      true,
+    );
+  });
+
+  it('keeps a typescript range the user pinned and reports it', () => {
+    const { old } = fixture(SETUPS[0], '0.11.0');
+    editJson(join(old, 'package.json'), (pkg) => {
+      pkg.devDependencies.typescript = '~5.9.0';
+    });
+
+    const plan = upgrade(old);
+    applyPlan(old, plan);
+
+    const pkg = JSON.parse(readFileSync(join(old, 'package.json'), 'utf8')) as {
+      devDependencies: Record<string, string>;
+    };
+    expect(pkg.devDependencies.typescript).toBe('~5.9.0');
+    expect(plan.review.some((r) => r.path === 'package.json' && /typescript/.test(r.reason))).toBe(
       true,
     );
   });

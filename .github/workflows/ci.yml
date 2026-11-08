@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - run: npm ci
@@ -50,7 +50,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - run: npm ci
@@ -129,7 +129,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Enable corepack
@@ -264,7 +264,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Enable corepack
@@ -313,7 +313,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - run: npm ci
@@ -322,6 +322,30 @@ jobs:
 
       - name: Upgrade smoke test
         run: ${{ github.workspace }}/scripts/upgrade-smoke.sh ${{ matrix.tag }} ${{ matrix.preset }} ${{ matrix.database }} ${{ matrix.di }} "$RUNNER_TEMP/upgrade-demo"
+
+  typescript:
+    name: typescript ${{ matrix.ts }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Generated projects default to TypeScript 6. 5 is what projects created before 0.12 still use;
+        # 7 is the next major. Both must keep working.
+        ts: [5, 7]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Generated projects typecheck, test and build with TypeScript ${{ matrix.ts }}
+        run: scripts/typescript-compat.sh ${{ matrix.ts }} "$RUNNER_TEMP/ts-compat"
 
   examples:
     runs-on: ubuntu-latest
@@ -355,7 +379,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - run: npm ci
@@ -418,7 +442,7 @@ jobs:
           "
 
   publish:
-    needs: [lint-and-build, cross-platform, integration, workspace, upgrade, examples]
+    needs: [lint-and-build, cross-platform, integration, workspace, upgrade, typescript, examples]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -434,7 +458,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
           cache: npm
 

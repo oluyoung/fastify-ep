@@ -1,6 +1,6 @@
 # Build from the workspace root: docker build -f {{servicePath}}/Dockerfile -t {{projectName}} .
 # Docker reads {{servicePath}}/Dockerfile.dockerignore next to this file (BuildKit).
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /repo
 # The whole workspace is copied before installing: a dependency's postinstall (e.g. `prisma generate`)
 # and local libraries need their own files.
@@ -15,7 +15,7 @@ RUN npm run build -w "{{projectName}}"
 # Drop dev dependencies for the final image. Skip lifecycle scripts: dev-only tooling is gone.
 RUN npm ci -w "{{projectName}}" --omit=dev --ignore-scripts
 
-FROM node:22-alpine
+FROM node:24-alpine
 ENV NODE_ENV=production
 WORKDIR /repo
 COPY --from=build /repo ./

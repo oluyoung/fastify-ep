@@ -3,7 +3,7 @@
 // tested against what that release really produced (not a copy edited by hand).
 // Usage: node scripts/build-upgrade-fixture.mjs <tag> <outDir> <preset> <database> <di>
 // Creates <outDir>/demo-app with a `orders` module and a `users` CRUD resource. Needs the tag in the
-// local git history (in CI: fetch-depth 0), network for `npm ci`, and Node 22.
+// local git history (in CI: fetch-depth 0), network for `npm ci`, and Node 24.
 import { execFileSync, execSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -1,7 +1,4 @@
 {
-  "engines": {
-    "node": ">=22.12"
-  },
   "scripts": {
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",

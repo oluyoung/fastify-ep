@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 # The whole project is copied before installing: a dependency's postinstall (e.g. `prisma generate`)
 # needs the project's own files.
@@ -6,7 +6,7 @@ COPY . .
 RUN npm ci
 RUN npm run build
 
-FROM node:22-alpine
+FROM node:24-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 COPY package.json package-lock.json ./
