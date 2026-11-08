@@ -2,14 +2,17 @@ import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import { runDoctor, type DoctorCommandOptions } from './commands/doctor.js';
 import {
+  runGenerateComponent,
   runGenerateLibrary,
   runGenerateModule,
   runGenerateResource,
+  type GenerateComponentCommandOptions,
   type GenerateLibraryCommandOptions,
   type GenerateModuleCommandOptions,
   type GenerateResourceCommandOptions,
 } from './commands/generate.js';
 import { runInit } from './commands/init.js';
+import type { ComponentKind } from './generate-component.js';
 import { runUpgrade, type UpgradeCommandOptions } from './commands/upgrade.js';
 import {
   DATABASE_STRATEGIES,
@@ -28,6 +31,12 @@ const pkg = require('../package.json') as { version: string };
 
 /** The generators the program dispatches to; replaceable so tests can observe the parsed options. */
 export interface ProgramRunners {
+  generateComponent: (
+    kind: ComponentKind,
+    name: string,
+    cwd: string,
+    options: GenerateComponentCommandOptions,
+  ) => Promise<void>;
   generateModule: (
     name: string,
     cwd: string,
@@ -49,6 +58,7 @@ export interface ProgramRunners {
 
 export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
   const run: ProgramRunners = {
+    generateComponent: runGenerateComponent,
     generateModule: runGenerateModule,
     generateResource: runGenerateResource,
     generateLibrary: runGenerateLibrary,
@@ -185,6 +195,53 @@ export function createProgram(runners: Partial<ProgramRunners> = {}): Command {
         });
       },
     );
+
+  for (const kind of ['service', 'schema', 'repository'] as const) {
+    const command = withProjectOption(generate.command(`${kind} <name>`))
+      .description(
+        {
+          service: 'add a service to an existing module and register it',
+          schema: 'add a TypeBox schema file to an existing module',
+          repository:
+            'add a repository over an existing database model to a module and register it',
+        }[kind],
+      )
+      .requiredOption('--module <module>', 'the existing module to add the file to');
+    if (kind === 'repository') {
+      command.requiredOption(
+        '--model <model>',
+        'the existing Prisma model (User) or Drizzle table export (usersTable) to read',
+      );
+    }
+    if (kind !== 'schema') {
+      command.option('--no-test', `skip generating the ${kind} test file`);
+      command.option(
+        '--scope <scope>',
+        `service lifetime for Awilix projects (${DI_SCOPES.join(', ')})`,
+        'singleton',
+      );
+    }
+    command.action(
+      async (
+        name: string,
+        options: {
+          module: string;
+          model?: string;
+          test?: boolean;
+          scope?: string;
+          project?: string;
+        },
+      ) => {
+        await run.generateComponent(kind, name, process.cwd(), {
+          module: options.module,
+          model: options.model,
+          withTests: options.test,
+          scope: options.scope === undefined ? undefined : parseScope(options.scope),
+          project: options.project,
+        });
+      },
+    );
+  }
 
   generate
     .command('library <name>')

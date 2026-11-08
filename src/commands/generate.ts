@@ -1,4 +1,5 @@
 import * as clack from '@clack/prompts';
+import { generateComponent, type ComponentKind } from '../generate-component.js';
 import { generateLibrary } from '../generate-library.js';
 import { generateModule } from '../generate-module.js';
 import { generateResource } from '../generate-resource.js';
@@ -106,5 +107,48 @@ export async function runGenerateLibrary(
 
   clack.log.success(`Generated library "${result.packageName}" in ${result.targetDir}.`);
   for (const note of result.notes) clack.log.info(note);
+  clack.outro('Done.');
+}
+
+export interface GenerateComponentCommandOptions {
+  module: string;
+  /** Repository only. */
+  model?: string;
+  withTests?: boolean;
+  scope?: DiScope;
+  project?: string;
+}
+
+export async function runGenerateComponent(
+  kind: ComponentKind,
+  name: string,
+  cwd: string,
+  options: GenerateComponentCommandOptions,
+): Promise<void> {
+  clack.intro(`fastify-ep generate ${kind}`);
+
+  const targetDir = resolveProjectOrExit(cwd, options.project);
+  let result;
+  try {
+    result = generateComponent({
+      targetDir,
+      kind,
+      name,
+      module: options.module,
+      model: options.model,
+      withTests: options.withTests,
+      scope: options.scope,
+    });
+  } catch (err) {
+    clack.log.error(err instanceof Error ? err.message : String(err));
+    clack.outro('Failed.');
+    process.exit(1);
+  }
+
+  clack.log.success(`Generated ${kind} "${name}" in module "${options.module}".`);
+  for (const file of result.files) clack.log.info(file);
+  if (result.wired)
+    clack.log.info(`Registered in src/modules/${options.module}/${options.module}.module.ts.`);
+  for (const note of result.notes) clack.log.warn(note);
   clack.outro('Done.');
 }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 3,
-  "fastifyEpVersion": "0.12.0",
+  "fastifyEpVersion": "0.13.0",
   "architectureVersion": 1,
   "architecture": {
     "schema": "typebox",

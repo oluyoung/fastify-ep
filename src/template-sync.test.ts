@@ -166,6 +166,10 @@ describe('template files are not git-ignored', () => {
     'resource-template-crud-drizzle',
     'resource-template-crud-orm',
     'resource-template-crud-prisma',
+    'component-template-service',
+    'component-template-schema',
+    'component-template-repository-drizzle',
+    'component-template-repository-prisma',
   ])('%s/', (dir) => {
     const files = listFiles(`${repoRoot}${dir}`).map((file) => file.slice(repoRoot.length));
     const ignored = files.filter((file) => isIgnoredByGit(file) === true);
@@ -198,6 +202,10 @@ describe('template files survive `npm pack`', () => {
     'resource-template-crud-drizzle',
     'resource-template-crud-orm',
     'resource-template-crud-prisma',
+    'component-template-service',
+    'component-template-schema',
+    'component-template-repository-drizzle',
+    'component-template-repository-prisma',
   ])('%s/', (dir) => {
     const offenders = listFiles(`${repoRoot}${dir}`)
       .filter((file) => dropped.has(file.slice(file.lastIndexOf('/') + 1)))

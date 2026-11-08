@@ -115,8 +115,11 @@ names must be lowercase kebab-case (`user-profiles`).
 fastify-ep init [name|path] [--name <package-name>] [--pm npm|pnpm|yarn] [--preset minimal|standard|production] [--database none|drizzle|prisma] [--di native|awilix]
 fastify-ep generate module <name> [--no-test] [--scope singleton|request] [-C <dir>]
 fastify-ep generate resource <name> [--crud] [--no-test] [--scope singleton|request] [--singular <name>] [-C <dir>]
+fastify-ep generate service <name> --module <module> [--no-test] [--scope singleton|request] [-C <dir>]
+fastify-ep generate schema <name> --module <module> [-C <dir>]
+fastify-ep generate repository <name> --module <module> --model <model> [--no-test] [-C <dir>]
 fastify-ep generate library <name> [--name <package-name>] [--dir <path>]
-fastify-ep g <module|resource|library> ...      # g is an alias for generate
+fastify-ep g <module|resource|service|schema|repository|library> ...      # g is an alias for generate
 fastify-ep doctor [--strict] [--json] [-C <dir>]
 fastify-ep upgrade [--dry-run] [--json] [-C <dir>]
 ```
@@ -141,6 +144,15 @@ fastify-ep upgrade [--dry-run] [--json] [-C <dir>]
   `--singular <name>` sets the entity name; `--no-test` and `--scope` behave as for `module`.
   Generation stops without writing anything if the name is invalid or already used, or if the
   schema file already defines that table or model, and it restores everything if a step fails.
+- `generate service|schema|repository <name> --module <module>` — add one more file to an
+  existing module, named `<name>.service.ts` (and so on) next to the module's own files.
+  `--module` is always required. A service or repository is registered in the module's
+  `<module>.module.ts` (a type entry and a decorator, or an Awilix registration); if that file no
+  longer has the generated shape, it is left as it is and the lines to add are printed. A schema
+  needs no registration. `repository` needs a database project and `--model`, the existing Prisma
+  model (`User`) or Drizzle table export (`usersTable`) it reads; it also writes a test that runs
+  against `TEST_DATABASE_URL` and is skipped without it. Generation is refused if the file exists
+  or if another module already registers the same name.
 - `generate library <name>` — inside a pnpm, npm or Yarn workspace, add a shared library: a plain
   TypeScript package (TypeBox example schema, a Vitest test, built to `dist`) at `packages/<name>`
   or wherever the workspace keeps libraries (`--dir` overrides). The package name uses the

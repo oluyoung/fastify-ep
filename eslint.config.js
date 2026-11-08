@@ -24,6 +24,7 @@ export default tseslint.config(
       'resource-template/**',
       'resource-template-awilix/**',
       'resource-template-crud*/**',
+      'component-template-*/**',
       'template-overlays/di/**',
       'examples/**',
     ],
