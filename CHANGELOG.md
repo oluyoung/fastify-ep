@@ -4,6 +4,19 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
+## [0.13.0] — Single-file generators
+
+### Added
+
+- `generate service|schema|repository <name> --module <module>` (alias `g`) adds one file to an existing module. `--module` is always required.
+  - `service`: `<name>.service.ts` and a unit test, registered in `<module>.module.ts` (native decorator, or Awilix registration with `--scope`).
+  - `schema`: `<name>.schema.ts`, a TypeBox schema. Nothing is registered.
+  - `repository`: needs a Drizzle or Prisma project and `--model` (a Prisma model, or a Drizzle table export). Writes `<name>.repository.ts` with `findAll` and `findById`, registered in the module file, and a test that runs against `TEST_DATABASE_URL` and is skipped without it.
+- The command refuses an existing file, an unknown module or model, a model without a string `id`, and a `<name>Service` or `<name>Repository` that any module already registers (all modules share one Fastify instance). If the module file was edited so the import, type entry and registration cannot be found, it is left unchanged and the three lines are printed.
+- CI job `components` generates all three into native/none, Awilix/Drizzle and native/Prisma projects, checks them and requires the repository tests to run against Postgres.
+
+No migration: nothing in existing projects changes.
+
 ## [0.12.0] — Node 24 and TypeScript 6
 
 The supported toolchain moves forward: Node.js 24 and TypeScript 6. Existing projects keep working; only newly generated projects change, plus one small `upgrade` migration for the TypeScript range.

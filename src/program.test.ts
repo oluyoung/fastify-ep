@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { createProgram } from './program.js';
 
 function setup() {
+  const generateComponent = vi.fn(async () => {});
   const generateModule = vi.fn(async () => {});
   const generateResource = vi.fn(async () => {});
   const generateLibrary = vi.fn(async () => {});
   const doctor = vi.fn(async () => {});
   const upgrade = vi.fn(async () => {});
   const program = createProgram({
+    generateComponent,
     generateModule,
     generateResource,
     generateLibrary,
@@ -26,7 +28,16 @@ function setup() {
     }
   }
   const parse = (...args: string[]) => program.parseAsync(['node', 'fastify-ep', ...args]);
-  return { generateModule, generateResource, generateLibrary, doctor, upgrade, parse, program };
+  return {
+    generateComponent,
+    generateModule,
+    generateResource,
+    generateLibrary,
+    doctor,
+    upgrade,
+    parse,
+    program,
+  };
 }
 
 describe('generate alias', () => {
@@ -254,5 +265,60 @@ describe('doctor --json', () => {
     const { doctor, parse } = setup();
     await parse('doctor', '--json');
     expect(doctor).toHaveBeenCalledWith(process.cwd(), expect.objectContaining({ json: true }));
+  });
+});
+
+describe('generate service, schema and repository', () => {
+  it('requires --module', async () => {
+    const { parse } = setup();
+    await expect(parse('generate', 'service', 'notifications')).rejects.toThrow(/--module/);
+  });
+
+  it('passes the module, tests and scope to a service', async () => {
+    const { generateComponent, parse } = setup();
+
+    await parse('g', 'service', 'notifications', '--module', 'orders', '--no-test');
+
+    expect(generateComponent).toHaveBeenCalledWith('service', 'notifications', process.cwd(), {
+      module: 'orders',
+      model: undefined,
+      withTests: false,
+      scope: 'singleton',
+      project: undefined,
+    });
+  });
+
+  it('requires --model for a repository', async () => {
+    const { parse } = setup();
+    await expect(parse('g', 'repository', 'audit', '--module', 'orders')).rejects.toThrow(
+      /--model/,
+    );
+  });
+
+  it('passes --model to a repository', async () => {
+    const { generateComponent, parse } = setup();
+
+    await parse('g', 'repository', 'audit', '--module', 'orders', '--model', 'User');
+
+    expect(generateComponent).toHaveBeenCalledWith(
+      'repository',
+      'audit',
+      process.cwd(),
+      expect.objectContaining({ module: 'orders', model: 'User' }),
+    );
+  });
+
+  it('a schema takes neither --model nor --no-test', async () => {
+    const { generateComponent, parse } = setup();
+
+    await parse('g', 'schema', 'payments', '--module', 'orders');
+
+    expect(generateComponent).toHaveBeenCalledWith('schema', 'payments', process.cwd(), {
+      module: 'orders',
+      model: undefined,
+      withTests: undefined,
+      scope: undefined,
+      project: undefined,
+    });
   });
 });
