@@ -4,6 +4,14 @@ All notable changes to `fastify-ep` are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Until 1.0, minor
 versions may include breaking changes to generated output.
 
+## [0.13.1] — README
+
+### Changed
+
+- The README is rewritten for the npm page: a table of contents, requirements (Node 24), a fuller quickstart, the generated project layout, configuration and operations (environment variables, request IDs, logging, health probes), the single-file generators, and links to the documentation site (in progress).
+
+No code or generated-output changes, and no migration.
+
 ## [0.13.0] — Single-file generators
 
 ### Added
